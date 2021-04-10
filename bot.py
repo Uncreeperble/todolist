@@ -122,7 +122,7 @@ async def about(ctx):
 """, color = 0x00a8ff)
     em.set_footer(text=footerText)
     await ctx.send(embed=em)
-#################################################
+##################################################
 @bot.command(aliases=['statistics','guildcount'])
 async def stats(ctx):
     embed=discord.Embed(title="Bot statistics", description=f"""Guild Count: `{str(len(bot.guilds))}`
