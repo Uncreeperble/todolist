@@ -106,7 +106,7 @@ async def help(ctx):
     `Stats` - Displays statistics of the bot `(Aliases: statistics, guildcount)`""", inline=True)
     em.set_footer(text=footerText)
     await ctx.send(embed=em)
-#################################    
+##################################   
 @bot.command()
 async def ping(ctx):
     await ctx.send("Bot latency is `" + str(round(bot.latency * 1000)) + "ms`")
