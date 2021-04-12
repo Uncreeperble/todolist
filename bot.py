@@ -22,7 +22,7 @@ def checkTableExists(tablename):
             """)
         return True
     except:
-        return True
+        return False
 
 # <------------------------------------------------------------------------->
 
@@ -175,7 +175,70 @@ Member Count: `{str(sum(g.member_count for g in bot.guilds))}`
 # <-------------------------------    Setup and Reset command    ---------------------------->    
 @bot.command()
 async def setup(ctx):
-    await ctx.send("WHY")
+    if ctx.author.guild_permissions.manage_guild:
+        if ctx.guild.me.guild_permissions.manage_roles == False or ctx.guild.me.guild_permissions.manage_channels == False:
+            embed = discord.Embed(title="Bot missing Permissions", description="To Run this command the bot needs the `Manage Roles` and `Manage Channels` permissions.", color=0x00a8ff)
+            embed.set_footer(text=footerText)
+            await ctx.send(embed=embed)
+        else:
+            if checkTableExists(f"config{ctx.guild.id}"):  
+                ServerSetup = True
+                c.execute(f"SELECT * FROM config{ctx.guild.id}")
+                configInfo = c.fetchall()[0]
+                configInfo = (823521117415276554, 823521118530699285, 721784188189016226, 823521234175262751, 823521119956107274)
+            else:
+                ServerSetup = False
+            if ServerSetup:
+                embed=discord.Embed(title="This server has already been setup yet.", description="Please run the reset command if you wish to re-run the setup.", color=0x00a8ff)
+                embed.set_footer(text=footerText)
+                await ctx.send(embed=embed)
+            else:       
+                role1 = await ctx.guild.create_role(name="View List")
+                role2 = await ctx.guild.create_role(name="List Management")
+                server = ctx.guild
+                role = discord.utils.get(server.roles,name="View List")
+                overwrites = {
+                server.default_role: discord.PermissionOverwrite(read_messages=False),
+                server.me: discord.PermissionOverwrite(read_messages=True),
+                role: discord.PermissionOverwrite(read_messages=True)
+                    }
+                listChannel = await server.create_text_channel('todo-list',overwrites=overwrites)
+                list = []
+                embed = discord.Embed(title= f"{ctx.guild.name}'s To-Do List", description="To add items please type %additem <item name>",color=0x00a8ff)
+                updating_list = await listChannel.send(embed=embed)
+                c.execute(f"""CREATE TABLE config{ctx.guild.id}
+                (
+                ViewList int,
+                ListManagement int,
+                guildID int,
+                updatingMSG int,
+                uMSGChannel int
+                )""")
+                c.execute(f"""CREATE TABLE items{ctx.guild.id} (
+                item VARCHAR(90),
+                pos int
+                )
+                """)
+                conn.commit()
+                c.execute(f"""INSERT INTO config{ctx.guild.id}
+                VALUES
+                (
+                {role1.id}, {role2.id}, {ctx.guild.id}, {updating_list.id}, {listChannel.id}
+                )
+                """)
+                conn.commit()
+                em = discord.Embed(title = f"{ctx.guild.name} has been setup", description ="The following changes have been made", color =0x00a8ff)
+                em.add_field(name="Role Created: View List", value=f"The following role has been created: <@&{role1.id}>, assign this role to users for them to be given access to view the To-Do List.", inline=False)
+                em.add_field(name="Role Created: List Management", value=f"The following role has been created: <@&{role2.id}>, assign this role to Trusted Members to give them access to manage the server To-Do List.", inline=False)
+                em.add_field(name="ToDo List Channel Created", value=f"The following channel has been created: <#{listChannel.id}>, this is the channel where the Servers To-Do list will be sent and updated.", inline=False)
+                em.add_field(name="Disclaimer", value="To reset the bot please type %reset, this command can only be ran by users with the `Manage Server` permission.")
+                em.set_footer(text=footerText)
+                await ctx.send(embed=em)
+    else:
+        embed=discord.Embed(title=":x: No Permission.", description="You require the `manage guild` permission to run this command!", color=0x00a8ff)
+        embed.set_footer(text=footerText)
+        await ctx.send(embed=embed)
+
 #########################################################
 @bot.command()
 async def reset(ctx):
@@ -224,11 +287,11 @@ async def reset(ctx):
                             errors.append(":white_check_mark: ToDo List Channel was deleted")
                         except:
                             errors.append(":x: Failed to delete the todo list channel")
-                        try:
-                            await role.delete()
-                            errors.append(":white_check_mark: View List Role was deleted")
-                        except:
-                            errors.append(":x: Failed to delete the View List role")
+                        # try:
+                        await role.delete()
+                        errors.append(":white_check_mark: View List Role was deleted")
+                        # except:
+                            # errors.append(":x: Failed to delete the View List role")
                         try:
                             await role2.delete()
                             errors.append(":white_check_mark: List Management Role was deleted")
@@ -269,7 +332,7 @@ async def reset(ctx):
             else:
                 return
     else:
-        embed=discord.Embed(title=":x: No Permissions.", description="You require the `manage guild` permission to run this command!", color=0x00a8ff)
+        embed=discord.Embed(title=":x: No Permission.", description="You require the `manage guild` permission to run this command!", color=0x00a8ff)
         embed.set_footer(text=footerText)
         await ctx.send(embed=embed)
     
