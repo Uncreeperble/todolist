@@ -74,7 +74,7 @@ def generateListEM(guildID):
         em = discord.Embed(title = f"{GNAME}'s To-Do List", description ="", color = discord.Color.green())
         em.add_field(name=f"No items to be displayed.", value="`AddItem <Item>`", inline=False)
         em.set_footer(text=footerText)
-    return em
+    return em  
 # <------------------------------------------------------------------------->
 
 
@@ -133,27 +133,25 @@ def insert_returns(body):
         insert_returns(body[-1].body)
 
 @bot.command()
+@commands.is_owner()
 async def eval_fn(ctx, *, cmd):
-    if str(ctx.author.id) == "527990415786508299":
-        fn_name = "_eval_expr"
-        cmd = cmd.strip("` ")
-        cmd = "\n".join(f"    {i}" for i in cmd.splitlines())
-        body = f"async def {fn_name}():\n{cmd}"
-        parsed = ast.parse(body)
-        body = parsed.body[0].body
-        insert_returns(body)
-        env = {
-            'bot': ctx.bot,
-            'discord': discord,
-            'commands': commands,
-            'ctx': ctx,
-            '__import__': __import__
-        }
-        exec(compile(parsed, filename="<ast>", mode="exec"), env)
-        result = (await eval(f"{fn_name}()", env))
-        await ctx.send(result)
-    else:
-        await ctx.send(":warning: You will be blacklisted if you continue to try and run DEVELOPER ONLY commands")
+    fn_name = "_eval_expr"
+    cmd = cmd.strip("` ")
+    cmd = "\n".join(f"    {i}" for i in cmd.splitlines())
+    body = f"async def {fn_name}():\n{cmd}"
+    parsed = ast.parse(body)
+    body = parsed.body[0].body
+    insert_returns(body)
+    env = {
+        'bot': ctx.bot,
+        'discord': discord,
+        'commands': commands,
+        'ctx': ctx,
+        '__import__': __import__
+    }
+    exec(compile(parsed, filename="<ast>", mode="exec"), env)
+    result = (await eval(f"{fn_name}()", env))
+    await ctx.send(result)
 # <---------------------------------------------------------------------------------->    
 
 
@@ -238,6 +236,7 @@ Member Count: `{str(sum(g.member_count for g in bot.guilds))}`
 
 # <-------------------------------    Setup and Reset command    ---------------------------->    
 @bot.command()
+@commands.guild_only()
 async def setup(ctx):
     if ctx.author.guild_permissions.manage_guild:
         if ctx.guild.me.guild_permissions.manage_roles == False or ctx.guild.me.guild_permissions.manage_channels == False:
@@ -331,6 +330,7 @@ async def setup(ctx):
 
 #########################################################
 @bot.command()
+@commands.guild_only()
 async def reset(ctx):
     if ctx.author.guild_permissions.manage_guild:
         if ctx.guild.me.guild_permissions.manage_roles == False or ctx.guild.me.guild_permissions.manage_channels == False:
@@ -425,6 +425,7 @@ async def reset(ctx):
 
 # <-------------------------------    List manage and view commands    ---------------------------->   
 @bot.command(aliases=['view','view_list','list','items'])
+@commands.guild_only()
 async def viewlist(ctx, guildID=None):
     if str(ctx.author.id) == "527990415786508299":
         if guildID == None:
@@ -452,6 +453,7 @@ async def viewlist(ctx, guildID=None):
         await ctx.send(embed=embed)
 #############################################################################
 @bot.command(aliases=['add','add_item'])
+@commands.guild_only()
 async def additem(ctx, *, item = None):
     guildID = ctx.guild.id
     if checkTableExists(f"config{guildID}"):  
@@ -486,6 +488,7 @@ async def additem(ctx, *, item = None):
         await ctx.send(embed=embed)
 #####################################################################################
 @bot.command(aliases=['clear_list', 'clear'])
+@commands.guild_only()
 async def clearlist(ctx):
     guildID = ctx.guild.id
     if checkTableExists(f"config{guildID}"):  
@@ -534,6 +537,7 @@ async def clearlist(ctx):
         await ctx.send(embed=embed)
 ########################################################################################################
 @bot.command(aliases=['delitem', 'del', 'delete_item'])
+@commands.guild_only()
 async def deleteItem(ctx, pos = None):
     guildID = ctx.guild.id
     if checkTableExists(f"config{guildID}"):  
@@ -568,4 +572,4 @@ async def deleteItem(ctx, pos = None):
  
 # <-----------------------------------------Bot login ----------------------------------->
 bot.run("Nzk4NzQ0MjYzOTU2ODg5NjAx.X_5ekA.5h94UI5FkZaouUJFtJKdmaKOYZg") 
-# latest update 2.0.7
+# latest update 2.0.8
