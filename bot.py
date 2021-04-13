@@ -25,15 +25,19 @@ def checkTableExists(tablename):
         return False
 async def updatePos(ctx):
     guildID = ctx.guild.id
-    c.execute("SELECT COUNT(*) FROM items{guildID}")
+    c.execute(f"SELECT COUNT(*) FROM items{guildID}")
     amt = int(c.fetchone()[0])
     if amt != 0:
         c.execute(f"SELECT * FROM items{guildID} ORDER BY pos ASC")
         items = c.fetchall()
+        print(items, amt)
+        c.execute(f"DELETE FROM items{guildID}")
         for i in range(amt):
+            print(f"{items[i][0]}", {i+1})
             c.execute(f"""INSERT INTO items{ctx.guild.id} VALUES 
-            ("{items[i][0]}", {i})
+            ("{items[i][0]}", {i+1})
         """)
+            conn.commit()
     else:
         await ctx.send("nothing in list")
 async def updateList(ctx, em, configInfo):
@@ -545,7 +549,8 @@ async def deleteItem(ctx, pos = None):
         if role in ctx.author.roles or guildID != ctx.guild.id:
             if pos is not None:
                 c.execute(f"DELETE FROM items{guildID} WHERE pos = {pos}")
-                updatePos(ctx)
+                conn.commit()
+                await updatePos(ctx)
                 em = generateListEM(ctx.guild.id)
                 await updateList(ctx, em, configInfo)
                 embed=discord.Embed(title="Item Deleted", description=f"The item in position `{pos}` was deleted.", color=discord.Color.green())
@@ -569,4 +574,4 @@ async def deleteItem(ctx, pos = None):
  
 # <-----------------------------------------Bot login ----------------------------------->
 bot.run("Nzk4NzQ0MjYzOTU2ODg5NjAx.X_5ekA.5h94UI5FkZaouUJFtJKdmaKOYZg") 
-# latest update 2.0.5
+# latest update 2.0.6
