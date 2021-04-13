@@ -144,25 +144,32 @@ async def eval_fn(ctx, *, cmd):
 
 # <------------------------------- simple text reply commands ---------------------------->       
 @bot.command()
-async def help(ctx):
-    em = discord.Embed(title="ToDo-List Bot Help Menu", description="The default prefix for the bot is `%`", color=discord.Color.green())
-    em.add_field(name="Commands", value="""=-=-=-=-=-=-=-=-=-=-=-=-=
-    **Main Commands**
-    `Setup` - Sets up the bot, creating all required roles and channels `(No aliases)`
-    `Reset` - Resets the bot, deleting all roles and channels created `(No aliases)`
-    `ViewList` - Displays the todo list `(Aliases: View, View_List, List, Items)`
-    `AddItem <item>` - Adds an item to the list `(Aliases: Add, Add_Item)`
-    `ClearList` - Clears the current list `(Aliases: Clear, Clear_List)`
-    =-=-=-=-=-=-=-=-=-=-=-=-=
-    **Other commands**
-    `Help` - Displays all of the bot commands `(No aliases)`
-    `Ping` - Displays the latency of the bot `(No aliases)`
-    `Invite` - Displays the invite link of the bot `(No aliases)`
-    `About` - Displays the bot information and invite link `(No aliases)`
-    `Stats` - Displays statistics of the bot `(Aliases: Statistics, GuildCount)`
-    `Info` - Displays credits of the bot `(Aliases: Credits, Author)`
-    =-=-=-=-=-=-=-=-=-=-=-=-=""", inline=True)
-    em.set_footer(text=footerText)
+async def help(ctx, page = 1):
+    if page == 1:
+        em = discord.Embed(title="ToDo-List Bot Help Menu (Pg. 1/2)", description="", color=discord.Color.green())
+        em.add_field(name="The default prefix for the bot is `%`", value="""
+        **Main Commands**
+        `Setup` - Sets up the bot, creating all required roles and channels `(No aliases)`
+        `Reset` - Resets the bot, deleting all roles and channels created `(No aliases)`
+        `ViewList` - Displays the todo list `(Aliases: View, View_List, List, Items)`
+        `AddItem <item>` - Adds an item to the list `(Aliases: Add, Add_Item)`
+        `DeleteItem <itemID>` - Deletes an item `(Aliases: DelItem, Delete_Item, Del)`
+        `ClearList` - Clears the current list `(Aliases: Clear, Clear_List)`
+        """, inline=True)
+        em.set_footer(text="© 2021 Portal Development. All rights reserved - `%help 2` for more")
+    if page == 2:
+        em = discord.Embed(title="ToDo-List Bot Help Menu (Pg. 2/2)", description="", color=discord.Color.green())
+        em.add_field(name="The default prefix for the bot is `%`", value="""
+        **Other commands**
+        `Help <page>` - Displays all of the bot commands `(No aliases)`
+        `Ping` - Displays the latency of the bot `(No aliases)`
+        `Invite` - Displays the invite link of the bot `(No aliases)`
+        `About` - Displays the bot information and invite link `(No aliases)`
+        `Stats` - Displays statistics of the bot `(Aliases: Statistics, GuildCount)`
+        `Info` - Displays credits of the bot `(Aliases: Credits, Author)`
+        """, inline=True)
+        em.set_footer(text="© 2021 Portal Development. All rights reserved - `%help 1` for first page")
+
     await ctx.send(embed=em)
 #################################    
 @bot.command()
@@ -457,7 +464,7 @@ async def additem(ctx, *, item):
         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
         embed.set_footer(text=footerText)
         await ctx.send(embed=embed)
-
+#####################################################################################
 @bot.command(aliases=['clear_list', 'clear'])
 async def clearlist(ctx):
     guildID = ctx.guild.id
@@ -505,10 +512,33 @@ async def clearlist(ctx):
         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
         embed.set_footer(text=footerText)
         await ctx.send(embed=embed)
-    
+########################################################################################################
+@bot.command(aliases=['delitem', 'del', 'delete_item'])
+async def deleteItem(ctx):
+    guildID = ctx.guild.id
+    if checkTableExists(f"config{guildID}"):  
+       ServerSetup = True
+       c.execute(f"SELECT * FROM config{guildID}")
+       configInfo = list(c.fetchone())
+       role = ctx.guild.get_role(int(configInfo[1]))
+    else:
+        ServerSetup = False
+    if ServerSetup:
+        if role in ctx.author.roles or guildID != ctx.guild.id:
+            c.execute("DELETE FROM items{guildID} WHERE pos = ")
+        else:
+            embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=discord.Color.green())
+            embed.set_footer(text=footerText)
+            await ctx.send(embed=embed)
+    else:
+        embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
+        embed.set_footer(text=footerText)
+        await ctx.send(embed=embed)    
 # <----------------------------------------------------------------------------------------------->  
 
 
  
 # <-----------------------------------------Bot login ----------------------------------->
 bot.run("Nzk4NzQ0MjYzOTU2ODg5NjAx.X_5ekA.5h94UI5FkZaouUJFtJKdmaKOYZg") 
+
+# latest update 2.0.4
