@@ -24,6 +24,22 @@ def checkTableExists(tablename):
     except:
         return False
 
+def generateListEM(guildID):
+    c.execute(f"SELECT COUNT(*) FROM items{guildID}")
+    upto = int(c.fetchone()[0])
+    G = bot.get_guild(int(guildID))
+    GNAME = G.name
+    c.execute(f"SELECT * FROM items{guildID} ORDER BY pos ASC")
+    items = c.fetchall()
+    SplitList = ""
+    for i in range(upto):
+        SplitList = SplitList + f"\n **{items[i][1]}:** {items[i][0]}"
+    if SplitList == "":
+        SplitList = "No items to be displayed."
+    em = discord.Embed(title = f"{GNAME}'s To-Do List", description ="", color = 0x00a8ff)
+    em.add_field(name=f"This server's list currently has {upto} item/s.", value=SplitList, inline=False)
+    em.set_footer(text=footerText)
+    return em
 # <------------------------------------------------------------------------->
 
 
@@ -114,7 +130,8 @@ async def help(ctx):
     **Main Commands**
     `Setup` - Sets up the bot, creating all required roles and channels `(No aliases)`
     `Reset` - Resets the bot, deleting all roles and channels created `(No aliases)`
-    `ViewList` - Displays the current todo list `(Aliases: View, View_List, List, Items)`
+    `ViewList` - Displays the todo list `(Aliases: View, View_List, List, Items)`
+    `AddItem <item>` - Adds an item to the list `(Aliases: Add, Add_Item)`
     =-=-=-=-=-=-=-=-=-=-=-=-=
     **Other commands**
     `Help` - Displays all of the bot commands `(No aliases)`
@@ -296,11 +313,15 @@ async def reset(ctx):
                     embed.set_footer(text=footerText)
                     await ctx.send(embed=embed)
                 else:
-                    
+                    errors = []
                     if checkTableExists(f"config{ctx.guild.id}"):  
                         ServerSetup = True
                         c.execute(f"SELECT * FROM config{ctx.guild.id}")
-                        configInfo = c.fetchall()[0]
+                        try:
+                            configInfo = c.fetchall()[0]
+                        except:
+                            errors.append(":x: Could not fetch config info")
+                            configInfo = [1,2,3,4,5]
                    
                     else:
                         ServerSetup = False
@@ -309,7 +330,7 @@ async def reset(ctx):
                         channel = bot.get_channel(int(configInfo[4]))
                         role = ctx.guild.get_role(int(configInfo[0]))
                         role2 = ctx.guild.get_role(int(configInfo[1]))
-                        errors = []
+
                         try:
                             await channel.delete()
                             errors.append(":white_check_mark: ToDo List Channel was deleted")
@@ -358,10 +379,78 @@ async def reset(ctx):
 
 # <-------------------------------    List manage and view commands    ---------------------------->   
 @bot.command(aliases=['view','view_list','list','items'])
-async def viewlist(ctx)
+async def viewlist(ctx, guildID=None):
+    if str(ctx.author.id) == "527990415786508299":
+        if guildID == None:
+            guildID = ctx.guild.id
+    else:
+        guildID = ctx.guild.id
+    if checkTableExists(f"config{guildID}"):  
+        ServerSetup = True
+        c.execute(f"SELECT * FROM config{guildID}")
+        configInfo = c.fetchall()[0]
+        role = ctx.guild.get_role(int(configInfo[0]))
+    else:
+        ServerSetup = False
+    if ServerSetup:
+        if role in ctx.author.roles or guildID != ctx.guild.id:
+            em = generateListEM(guildID)
+            await ctx.send(embed=em)
+        else:
+            embed=discord.Embed(title=":x: No Permission.", description="You require the `View List` role to run this command!", color=0x00a8ff)
+            embed.set_footer(text=footerText)
+            await ctx.send(embed=embed)
+    else:
+        embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=0x00a8ff)
+        embed.set_footer(text=footerText)
+        await ctx.send(embed=embed)
+#############################################################################
+@bot.command(aliases=['add','add_item'])
+async def additem(ctx, *, item):
+    guildID = ctx.guild.id
+    if checkTableExists(f"config{guildID}"):  
+           ServerSetup = True
+           c.execute(f"SELECT * FROM config{guildID}")
+           configInfo = c.fetchall()[0]
+           role = ctx.guild.get_role(int(configInfo[1]))
+    else:
+        ServerSetup = False
+    if ServerSetup:
+        if role in ctx.author.roles or guildID != ctx.guild.id:
+            c.execute(f"SELECT COUNT(*) FROM items{ctx.guild.id}")
+            upto = int(c.fetchone()[0]) + 1
+            c.execute(f"""INSERT INTO items{ctx.guild.id} VALUES (
+            '{item}', {upto}
+            )""")
+            conn.commit()
+            em = generateListEM(ctx.guild.id)
+            channel = bot.get_channel(int(configInfo[4]))
+            msg = await channel.fetch_message(int(configInfo[3]))
+            await msg.delete()
+            newMSG = await channel.send(embed=em)
+            c.execute(f"DELETE FROM config{ctx.guild.id} WHERE NOT updatingMSG = {newMSG.id}")
+            conn.commit()
+            c.execute(f"""INSERT INTO config{ctx.guild.id} VALUES (
+            {configInfo[0]},
+            {configInfo[1]},
+            {configInfo[2]},
+            {int(newMSG.id)},
+            {configInfo[4]}
+            )
+            """)
+            em = discord.Embed(title = f":white_check_mark: Item added", description =f"`{item}` was added to the todo list in position {upto}", color = 0x00a8ff)
+            em.set_footer(text=footerText)
+            await ctx.send(embed=em)
+        else:
+            embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=0x00a8ff)
+            embed.set_footer(text=footerText)
+            await ctx.send(embed=embed)
+    else:
+        embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=0x00a8ff)
+        embed.set_footer(text=footerText)
+        await ctx.send(embed=embed)
 
-
-
+    
 # <----------------------------------------------------------------------------------------------->  
 
 
