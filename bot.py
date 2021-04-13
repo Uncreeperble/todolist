@@ -174,7 +174,7 @@ async def help(ctx, page = 1):
         `ClearList` - Clears the current list `(Aliases: Clear, Clear_List)`
         """, inline=True)
         em.set_footer(text="© 2021 Portal Development. All rights reserved - `%help 2` for more")
-    if page == 2:
+    elif page == 2:
         em = discord.Embed(title="ToDo-List Bot Help Menu (Pg. 2/2)", description="", color=discord.Color.green())
         em.add_field(name="The default prefix for the bot is `%`", value="""
         **Other commands**
@@ -186,7 +186,8 @@ async def help(ctx, page = 1):
         `Info` - Displays credits of the bot `(Aliases: Credits, Author)`
         """, inline=True)
         em.set_footer(text="© 2021 Portal Development. All rights reserved - `%help 1` for first page")
-
+    else:
+        await ctx.send("Incorrect page number.")
     await ctx.send(embed=em)
 #################################    
 @bot.command()
@@ -462,22 +463,19 @@ async def additem(ctx, *, item = None):
         ServerSetup = False
     if ServerSetup:
         if role in ctx.author.roles or guildID != ctx.guild.id:
-            if item is not None:
-                c.execute(f"SELECT COUNT(*) FROM items{ctx.guild.id}")
-                upto = int(c.fetchone()[0]) + 1
-                c.execute(f"""INSERT INTO items{ctx.guild.id} VALUES (
-                '{item}', {upto}
-                )""")
-                conn.commit()
-                em = generateListEM(ctx.guild.id)
-                await updateList(ctx, em, configInfo)
-                em = discord.Embed(title = f":white_check_mark: Item added", description =f"`{item}` was added to the todo list in position {upto}", color = discord.Color.green())
-                em.set_footer(text=footerText)
-                await ctx.send(embed=em)
-            else:
-                embed=discord.Embed(title=":x: Missing Argument.", description="You need to include the item you wish to add!", color=discord.Color.green())
-                embed.set_footer(text=footerText)
-                await ctx.send(embed=embed)
+
+            c.execute(f"SELECT COUNT(*) FROM items{ctx.guild.id}")
+            upto = int(c.fetchone()[0]) + 1
+            c.execute(f"""INSERT INTO items{ctx.guild.id} VALUES (
+            '{item}', {upto}
+            )""")
+            conn.commit()
+            em = generateListEM(ctx.guild.id)
+            await updateList(ctx, em, configInfo)
+            em = discord.Embed(title = f":white_check_mark: Item added", description =f"`{item}` was added to the todo list in position {upto}", color = discord.Color.green())
+            em.set_footer(text=footerText)
+            await ctx.send(embed=em)
+
         else:
             embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=discord.Color.green())
             embed.set_footer(text=footerText)
@@ -543,23 +541,19 @@ async def deleteItem(ctx, pos = None):
        c.execute(f"SELECT * FROM config{guildID}")
        configInfo = list(c.fetchone())
        role = ctx.guild.get_role(int(configInfo[1]))
+       c.execute(f"SELECT COUNT(*) FROM items{guildID}")
     else:
         ServerSetup = False
     if ServerSetup:
         if role in ctx.author.roles or guildID != ctx.guild.id:
-            if pos is not None:
-                c.execute(f"DELETE FROM items{guildID} WHERE pos = {pos}")
-                conn.commit()
-                await updatePos(ctx)
-                em = generateListEM(ctx.guild.id)
-                await updateList(ctx, em, configInfo)
-                embed=discord.Embed(title="Item Deleted", description=f"The item in position `{pos}` was deleted.", color=discord.Color.green())
-                embed.set_footer(text=footerText)
-                await ctx.send(embed=embed)
-            else:
-                embed=discord.Embed(title=":x: Missing Argument.", description="You need to include the position of the item you wish to delete!", color=discord.Color.green())
-                embed.set_footer(text=footerText)
-                await ctx.send(embed=embed)
+            c.execute(f"DELETE FROM items{guildID} WHERE pos = {pos}")
+            conn.commit()
+            await updatePos(ctx)
+            em = generateListEM(ctx.guild.id)
+            await updateList(ctx, em, configInfo)
+            embed=discord.Embed(title="Item Deleted", description=f"The item in position `{pos}` was deleted.", color=discord.Color.green())
+            embed.set_footer(text=footerText)
+            await ctx.send(embed=embed)
         else:
             embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=discord.Color.green())
             embed.set_footer(text=footerText)
@@ -574,4 +568,4 @@ async def deleteItem(ctx, pos = None):
  
 # <-----------------------------------------Bot login ----------------------------------->
 bot.run("Nzk4NzQ0MjYzOTU2ODg5NjAx.X_5ekA.5h94UI5FkZaouUJFtJKdmaKOYZg") 
-# latest update 2.0.6
+# latest update 2.0.7
