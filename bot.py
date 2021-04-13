@@ -114,6 +114,7 @@ async def help(ctx):
     **Main Commands**
     `Setup` - Sets up the bot, creating all required roles and channels `(No aliases)`
     `Reset` - Resets the bot, deleting all roles and channels created `(No aliases)`
+    `ViewList` - Displays the current todo list `(Aliases: View, View_List, List, Items)`
     =-=-=-=-=-=-=-=-=-=-=-=-=
     **Other commands**
     `Help` - Displays all of the bot commands `(No aliases)`
@@ -192,9 +193,19 @@ async def setup(ctx):
                 embed=discord.Embed(title="This server has already been setup yet.", description="Please run the reset command if you wish to re-run the setup.", color=0x00a8ff)
                 embed.set_footer(text=footerText)
                 await ctx.send(embed=embed)
-            else:       
-                role1 = await ctx.guild.create_role(name="View List")
-                role2 = await ctx.guild.create_role(name="List Management")
+            else:   
+                errors = []
+                startTime = time.time()
+                try:
+                    role1 = await ctx.guild.create_role(name="View List")
+                    errors.append(f":white_check_mark: Created View List role")
+                except:
+                    errors.append(":x: Failed to create the View List role")  
+                try:
+                    role2 = await ctx.guild.create_role(name="List Management")
+                    errors.append(f":white_check_mark: Created List Management role")
+                except:
+                    await ctx.send(":x: Failed to create the List Management role")
                 server = ctx.guild
                 role = discord.utils.get(server.roles,name="View List")
                 overwrites = {
@@ -202,11 +213,16 @@ async def setup(ctx):
                 server.me: discord.PermissionOverwrite(read_messages=True),
                 role: discord.PermissionOverwrite(read_messages=True)
                     }
-                listChannel = await server.create_text_channel('todo-list',overwrites=overwrites)
-                list = []
-                embed = discord.Embed(title= f"{ctx.guild.name}'s To-Do List", description="To add items please type %additem <item name>",color=0x00a8ff)
-                updating_list = await listChannel.send(embed=embed)
-                c.execute(f"""CREATE TABLE config{ctx.guild.id}
+                try:
+                    listChannel = await server.create_text_channel('todo-list',overwrites=overwrites)
+                    list = []
+                    embed = discord.Embed(title= f"{ctx.guild.name}'s To-Do List", description="To add items please type %additem <item name>",color=0x00a8ff)
+                    updating_list = await listChannel.send(embed=embed)
+                    errors.append(f":white_check_mark: Created the <#{listChannel.id}> channel")
+                except:
+                    await ctx.send(":x: Failed to create the todo-list channel")
+                try:
+                    c.execute(f"""CREATE TABLE config{ctx.guild.id}
                 (
                 ViewList int,
                 ListManagement int,
@@ -214,26 +230,37 @@ async def setup(ctx):
                 updatingMSG int,
                 uMSGChannel int
                 )""")
-                c.execute(f"""CREATE TABLE items{ctx.guild.id} (
+                    conn.commit()
+                    errors.append(":white_check_mark: Created the guild config database")
+                except:
+                    await ctx.send(":x: Failed to create the guild config database")    
+                try:
+                    c.execute(f"""CREATE TABLE items{ctx.guild.id} (
                 item VARCHAR(90),
                 pos int
                 )
                 """)
-                conn.commit()
-                c.execute(f"""INSERT INTO config{ctx.guild.id}
+                    conn.commit()
+                    errors.append(":white_check_mark: Created the guild items database")
+                except:
+                    await ctx.send(":x: Failed to create the guild items database")
+                try:
+                    c.execute(f"""INSERT INTO config{ctx.guild.id}
+                    
                 VALUES
                 (
                 {role1.id}, {role2.id}, {ctx.guild.id}, {updating_list.id}, {listChannel.id}
                 )
                 """)
-                conn.commit()
-                em = discord.Embed(title = f"{ctx.guild.name} has been setup", description ="The following changes have been made", color =0x00a8ff)
-                em.add_field(name="Role Created: View List", value=f"The following role has been created: <@&{role1.id}>, assign this role to users for them to be given access to view the To-Do List.", inline=False)
-                em.add_field(name="Role Created: List Management", value=f"The following role has been created: <@&{role2.id}>, assign this role to Trusted Members to give them access to manage the server To-Do List.", inline=False)
-                em.add_field(name="ToDo List Channel Created", value=f"The following channel has been created: <#{listChannel.id}>, this is the channel where the Servers To-Do list will be sent and updated.", inline=False)
-                em.add_field(name="Disclaimer", value="To reset the bot please type %reset, this command can only be ran by users with the `Manage Server` permission.")
+                    conn.commit()
+                    errors.append(":white_check_mark: Updated the guild config database")
+                except:
+                    await ctx.send(":x: Failed to update the guild config database")
+                test = '\n'.join(errors)
+                em = discord.Embed(title="Setup Complete", description=f"The Setup was completed in {round(time.time() - startTime, 4)} seconds.", color=0x00a8ff)
+                em.add_field(name="The following has been changed:", value=test)
                 em.set_footer(text=footerText)
-                await ctx.send(embed=em)
+                await ctx.send(embed=em)    
     else:
         embed=discord.Embed(title=":x: No Permission.", description="You require the `manage guild` permission to run this command!", color=0x00a8ff)
         embed.set_footer(text=footerText)
@@ -272,13 +299,14 @@ async def reset(ctx):
                     
                     if checkTableExists(f"config{ctx.guild.id}"):  
                         ServerSetup = True
-                        # c.execute(f"SELECT * FROM config{ctx.guild.id}")
-                        # configInfo = c.fetchall()[0]
-                        configInfo = (823521117415276554, 823521118530699285, 721784188189016226, 823521234175262751, 823521119956107274)
+                        c.execute(f"SELECT * FROM config{ctx.guild.id}")
+                        configInfo = c.fetchall()[0]
+                   
                     else:
                         ServerSetup = False
                     if ServerSetup:
-                        channel = ctx.guild.get_channel(int(configInfo[4]))
+                        startTime = time.time()
+                        channel = bot.get_channel(int(configInfo[4]))
                         role = ctx.guild.get_role(int(configInfo[0]))
                         role2 = ctx.guild.get_role(int(configInfo[1]))
                         errors = []
@@ -287,11 +315,11 @@ async def reset(ctx):
                             errors.append(":white_check_mark: ToDo List Channel was deleted")
                         except:
                             errors.append(":x: Failed to delete the todo list channel")
-                        # try:
-                        await role.delete()
-                        errors.append(":white_check_mark: View List Role was deleted")
-                        # except:
-                            # errors.append(":x: Failed to delete the View List role")
+                        try:
+                            await role.delete()
+                            errors.append(":white_check_mark: View List Role was deleted")
+                        except:
+                            errors.append(":x: Failed to delete the View List role")
                         try:
                             await role2.delete()
                             errors.append(":white_check_mark: List Management Role was deleted")
@@ -307,23 +335,11 @@ async def reset(ctx):
                             errors.append(":white_check_mark: List Items database deleted")
                         except:
                             errors.append(":x: Failed to delete the guild list-items database")
-                        print(errors)
-                        if errors == [":white_check_mark: ToDo List Channel was deleted", ":white_check_mark: View List Role was deleted", ":white_check_mark: List Management Role was deleted", ":white_check_mark: Guild Config database deleted", ":white_check_mark: List Items database deleted"]:
-                            em = discord.Embed(title="Reset Complete", description="The Reset has been successful.", color=0x00a8ff)
-                            em.add_field(name="The following has been changed:", value=""":white_check_mark: ToDo List Channel was deleted
-                            :white_check_mark: View List Role was deleted
-                            :white_check_mark: List Management Role was deleted
-                            :white_check_mark: Guild Config database deleted
-                            :white_check_mark: List Items database deleted
-                            """)
-                            em.set_footer(text=footerText)
-                            await ctx.send(embed=em)
-                        else:
-                            test = '\n'.join(errors)
-                            em = discord.Embed(title="Reset Complete", description="The Reset was not fully successful.", color=0x00a8ff)
-                            em.add_field(name="The following has been changed:", value=test)
-                            em.set_footer(text=footerText)
-                            await ctx.send(embed=em)                    
+                        test = '\n'.join(errors)
+                        em = discord.Embed(title="Reset Complete", description=f"The Reset was completed in {round(time.time() - startTime, 4)} seconds.", color=0x00a8ff)
+                        em.add_field(name="The following has been changed:", value=test)
+                        em.set_footer(text=footerText)
+                        await ctx.send(embed=em)                    
                         
                     else:
                         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=0x00a8ff)
@@ -340,6 +356,15 @@ async def reset(ctx):
 # <---------------------------------------------------------------------------------->    
 
 
+# <-------------------------------    List manage and view commands    ---------------------------->   
+@bot.command(aliases=['view','view_list','list','items'])
+async def viewlist(ctx)
 
+
+
+# <----------------------------------------------------------------------------------------------->  
+
+
+ 
 # <-----------------------------------------Bot login ----------------------------------->
 bot.run("Nzk4NzQ0MjYzOTU2ODg5NjAx.X_5ekA.5h94UI5FkZaouUJFtJKdmaKOYZg") 
