@@ -41,15 +41,15 @@ def checkIfSetup(guildID):
     
 async def updatePos(ctx):
     guildID = ctx.guild.id
-    c.execute(f"SELECT COUNT(*) FROM items{guildID}")
+    c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
     amt = int(c.fetchone()[0])
     if amt != 0:
-        c.execute(f"SELECT * FROM items{guildID} ORDER BY pos ASC")
+        c.execute(f"SELECT * FROM items WHERE guildID = {guildID} ORDER BY pos ASC")
         items = c.fetchall()
-        c.execute(f"DELETE FROM items{guildID}")
+        c.execute(f"DELETE FROM items WHERE guildID = {guildID}")
         for i in range(amt):
-            c.execute(f"""INSERT INTO items{ctx.guild.id} VALUES 
-            ("{items[i][0]}", {i+1})
+            c.execute(f"""INSERT INTO items VALUES 
+            ({ctx.guild.id}, "{items[i][1]}", {i+1})
         """)
             conn.commit()
     else:
@@ -62,16 +62,16 @@ async def updateList(ctx, em, configInfo):
     c.execute(f"""UPDATE config SET updatingMSG = {int(newMSG.id)} WHERE guildID = {ctx.guild.id}""")
     conn.commit()
 def generateListEM(guildID):
-    c.execute(f"SELECT COUNT(*) FROM items{guildID}")
+    c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
     upto = int(c.fetchone()[0])
     G = bot.get_guild(int(guildID))
     GNAME = G.name
     if upto != 0:
-        c.execute(f"SELECT * FROM items{guildID} ORDER BY pos ASC")
+        c.execute(f"SELECT * FROM items WHERE guildID = {guildID} ORDER BY pos ASC")
         items = c.fetchall()
         SplitList = ""
         for i in range(upto):
-            SplitList = SplitList + f"\n **{items[i][1]}:** {items[i][0]}"
+            SplitList = SplitList + f"\n **{items[i][2]}:** {items[i][1]}"
         em = discord.Embed(title = f"{GNAME}'s To-Do List", description ="", color = discord.Color.green())
         em.add_field(name=f"This server's list currently has {upto} item/s.", value=SplitList, inline=False)
         em.set_footer(text=footerText)
@@ -404,16 +404,6 @@ async def setup(ctx):
             except:
                 errors.append(":x: Failed to create the todo-list channel") 
             try:
-                c.execute(f"""CREATE TABLE items{ctx.guild.id} (
-            item VARCHAR(90),
-            pos int
-            )
-            """)
-                conn.commit()
-                errors.append(":white_check_mark: Created the guild items database")
-            except:
-                errors.append(":x: Failed to create the guild items database")
-            try:
                 c.execute(f"""INSERT INTO config
                 
             VALUES
@@ -498,7 +488,7 @@ async def reset(ctx):
                 except:
                     errors.append(":x: Failed to delete the guild config-info database")
                 try:
-                    c.execute(f"DROP TABLE items{ctx.guild.id}")
+                    c.execute(f"DELETE FROM items WHERE guildID = {ctx.guild.id}")
                     conn.commit()
                     errors.append(":white_check_mark: List Items database deleted")
                 except:
@@ -567,10 +557,10 @@ async def additem(ctx, *, defInput):
     if ServerSetup:
         if role in ctx.author.roles or guildID != ctx.guild.id:
 
-            c.execute(f"SELECT COUNT(*) FROM items{ctx.guild.id}")
+            c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {ctx.guild.id}")
             upto = int(c.fetchone()[0]) + 1
-            c.execute(f"""INSERT INTO items{ctx.guild.id} VALUES (
-            '{defInput}', {upto}
+            c.execute(f"""INSERT INTO items VALUES (
+            {ctx.guild.id}, '{defInput}', {upto}
             )""")
             conn.commit()
             em = generateListEM(ctx.guild.id)
@@ -622,7 +612,7 @@ async def clearlist(ctx):
                     embed.set_footer(text=footerText)
                     await ctx.send(embed=embed)
                 elif str(reaction.emoji) == "\U00002705":
-                    c.execute(f"DELETE FROM items{guildID}")
+                    c.execute(f"DELETE FROM items WHERE guildID = {guildID}")
                     conn.commit()
                     em = generateListEM(guildID)
                     await updateList(ctx, em, configInfo)
@@ -648,7 +638,7 @@ async def deleteItem(ctx, defInput : int):
        c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
        configInfo = list(c.fetchall()[0])
        role = ctx.guild.get_role(int(configInfo[1]))
-       c.execute(f"SELECT COUNT(*) FROM items{guildID}")
+       c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
        upto = c.fetchone()[0]
 
     else:
@@ -656,7 +646,7 @@ async def deleteItem(ctx, defInput : int):
     if ServerSetup:
         if role in ctx.author.roles or guildID != ctx.guild.id:
             if int(defInput) <= int(upto) and int(defInput) > 0:
-                c.execute(f"DELETE FROM items{guildID} WHERE pos = {defInput}")
+                c.execute(f"DELETE FROM items WHERE pos = {defInput} AND guildID = {ctx.guild.id}")
                 conn.commit()
                 await updatePos(ctx)
                 em = generateListEM(ctx.guild.id)
@@ -688,7 +678,7 @@ async def editItem(ctx, defInput : int, *, newItem):
        c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
        configInfo = list(c.fetchall()[0])
        role = ctx.guild.get_role(int(configInfo[1]))
-       c.execute(f"SELECT COUNT(*) FROM items{guildID}")
+       c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
        upto = c.fetchone()[0]
 
     else:
@@ -696,7 +686,7 @@ async def editItem(ctx, defInput : int, *, newItem):
     if ServerSetup:
         if role in ctx.author.roles or guildID != ctx.guild.id:
             if int(defInput) <= int(upto) and int(defInput) > 0:
-                c.execute(f"""UPDATE items{ctx.guild.id} SET item = '{str(newItem)}' WHERE pos = {int(defInput)}""")
+                c.execute(f"""UPDATE items SET item = '{str(newItem)}' WHERE pos = {int(defInput)} AND guildID = {ctx.guild.id}""")
                 conn.commit()
                 em = generateListEM(ctx.guild.id)
                 await updateList(ctx, em, configInfo)
@@ -744,10 +734,8 @@ async def prefix(ctx, prefix = None):
         await ctx.send(embed=embed)
         
         
-@bot.command()
-async def create(ctx):
-    await ctx.send(str(checkIfSetup(ctx.guild.id)))
+
     
     # <-----------------------------------------Bot login ----------------------------------->
 bot.run("Nzk4NzQ0MjYzOTU2ODg5NjAx.X_5ekA.5h94UI5FkZaouUJFtJKdmaKOYZg") 
-# latest update 2.1.3
+# latest update 2.1.4
