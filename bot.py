@@ -8,14 +8,15 @@ from discord.ext import commands
 from discord.ext.commands import *
 intents = discord.Intents.default()
 conn = sqlite3.connect('bot.db')
-default_prefix = 'b'
 c = conn.cursor()
+default_prefix = 'b'
 def get_prefix(bot, message):
-    c.execute(f"SELECT prefix FROM {message.guild.id}")
-    a = c.fetchone()[0]
-    
-    return a #prefix of the guild
-bot = commands.Bot(command_prefix=when_mentioned_or(default_prefix),intents=intents, case_insensitive=True)
+    if checkTableExists(f'config{message.guild.id}'):
+        c.execute(f"SELECT prefix FROM config{message.guild.id}")
+        return c.fetchone()[0]
+    else:
+        return default_prefix
+bot = commands.Bot(command_prefix=get_prefix,intents=intents, case_insensitive=True)
 bot.remove_command("help")
 
 
@@ -240,7 +241,7 @@ async def help(ctx, page = 1):
         em = discord.Embed(title="ToDo-List Bot Help Menu (Pg. 3/3)", description="", color=discord.Color.green())
         em.add_field(name="The default prefix for the bot is `%`", value="""
         **Config commands**
-        `Prefix <prefix>` - Changes the guilds prefix `(No aliases)`
+        `Prefix <prefix>` - Changes the guilds prefix `(Aliases: SetPrefix)`
         `enableChecking` - Allows the use of the Done command `(No aliases)`
         `setListName <New List Name>` - Changes the list name `(No aliases)`
         """, inline=True)
@@ -718,6 +719,33 @@ async def editItem(ctx, defInput : int, *, newItem):
         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
         embed.set_footer(text=footerText)
         await ctx.send(embed=embed)
-# <-----------------------------------------Bot login ----------------------------------->
+        
+
+@bot.command(aliases=['SetPrefix'])
+@commands.guild_only()
+@commands.has_guild_permissions(manage_guild=True)
+@commands.cooldown(1, 10, commands.BucketType.guild)
+async def prefix(ctx, prefix = None):
+    if prefix is not None:
+        if len(prefix) <= 3:
+            c.execute(f"""UPDATE config{ctx.guild.id} SET prefix = '{str(prefix)}'""")
+            conn.commit()
+            embed=discord.Embed(title="Prefix Updated", description=f"Your server prefix has been changed to `{prefix}`", color=discord.Color.green())
+            embed.set_footer(text=footerText)
+            await ctx.send(embed=embed)
+        else:
+            embed=discord.Embed(title=":x: Too Long", description="The server prefix can only be up to 3 characters long!", color=discord.Color.green())
+            embed.set_footer(text=footerText)
+            await ctx.send(embed=embed)
+    else:
+        if checkTableExists(f'config{ctx.guild.id}'):
+            c.execute(f"SELECT prefix FROM config{ctx.guild.id}")
+            pf = c.fetchone()[0]
+        else:
+            pf = default_prefix
+        embed=discord.Embed(title="Server Prefix", description=f"The server prefix is currently: `{pf}`", color=discord.Color.green())
+        embed.set_footer(text=footerText)
+        await ctx.send(embed=embed)
+    # <-----------------------------------------Bot login ----------------------------------->
 bot.run("Nzk4NzQ0MjYzOTU2ODg5NjAx.X_5ekA.5h94UI5FkZaouUJFtJKdmaKOYZg") 
-# latest update 2.1.1
+# latest update 2.1.2
