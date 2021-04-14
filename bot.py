@@ -40,9 +40,11 @@ def checkIfSetup(guildID):
 async def updatePos(ctx):
     guildID = ctx.guild.id
     c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
+    c.execute(f"SELECT sort FROM config WHERE guildID = {guildID}")
+    sort = c.fetchone()[0]
     amt = int(c.fetchone()[0])
     if amt != 0:
-        c.execute(f"SELECT * FROM items WHERE guildID = {guildID} ORDER BY pos ASC")
+        c.execute(f"SELECT * FROM items WHERE guildID = {guildID} ORDER BY {sort}")
         items = c.fetchall()
         c.execute(f"DELETE FROM items WHERE guildID = {guildID}")
         for i in range(amt):
@@ -62,18 +64,20 @@ async def updateList(ctx, em, configInfo):
 def generateListEM(guildID):
     c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
     upto = int(c.fetchone()[0])
+    c.execute(f"SELECT sort FROM config WHERE guildID = {guildID}")
+    sort = c.fetchone()[0]
     G = bot.get_guild(int(guildID))
     GNAME = G.name
     if upto != 0:
-        c.execute(f"SELECT * FROM items WHERE guildID = {guildID} ORDER BY pos ASC")
+        c.execute(f"SELECT * FROM items WHERE guildID = {guildID} ORDER BY {sort}")
         items = c.fetchall()
         SplitList = ""
         c.execute(f"SELECT listName from config WHERE guildID = {guildID}")
         lname = c.fetchone()[0]
         for i in range(upto):
-            SplitList = SplitList + f"\n **{items[i][2]}:** {items[i][1]}"
+            SplitList = SplitList + f"\n [{items[i][2]}] {items[i][1]}"
         em = discord.Embed(title = f"{lname}", description ="", color = discord.Color.green())
-        em.add_field(name=f"This server's list currently has {upto} item/s.", value=SplitList, inline=False)
+        em.add_field(name=f"This server's list currently has {upto} item/s (ID | Item).", value=SplitList, inline=False)
         em.set_footer(text=footerText)
     else:
         em = discord.Embed(title = f"{GNAME}'s To-Do List", description ="", color = discord.Color.green())
@@ -249,6 +253,7 @@ async def help(ctx, page = 1):
         `Prefix <prefix>` - Changes the guilds prefix `(Aliases: SetPrefix)`
         `EnableChecking` - Allows the use of the Done command `(No aliases)`
         `SetListName <New List Name>` - Changes the list name `(No aliases)`
+        `Sort <alph|num> <ASC|DESC> - Sorts list [alphabet/numer]ically ASC or DESC `(No aliases)`
         """, inline=True)
         em.set_footer(text="© 2021 Portal Development. All rights reserved - `%help 1` for first page")
     else:
@@ -403,7 +408,7 @@ async def setup(ctx):
                 
             VALUES
             (
-            {role1.id}, {role2.id}, {ctx.guild.id}, {updating_list.id}, {listChannel.id}, 'b', '{ctx.guild.name}s ToDo List'
+            {role1.id}, {role2.id}, {ctx.guild.id}, {updating_list.id}, {listChannel.id}, 'b', '{ctx.guild.name}s ToDo List', 0, 'pos ASC'
             )
             """)
                 conn.commit()
@@ -759,7 +764,56 @@ async def SetListName(ctx, *, newName):
             await ctx.send(embed=embed)
     else:
         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
-        embed.set_footer(text=footerText)   
+        embed.set_footer(text=footerText)  
+
+@bot.command()
+@commands.guild_only()
+@commands.cooldown(1, 5, commands.BucketType.guild)
+async def Sort(ctx, ISortType, ISortDir):
+    guildID = ctx.guild.id
+    if checkIfSetup(ctx.guild.id):  
+       ServerSetup = True
+       c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
+       configInfo = list(c.fetchall()[0])
+       role = ctx.guild.get_role(int(configInfo[1]))
+       c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
+       upto = c.fetchone()[0]
+
+    else:
+        ServerSetup = False
+    if ServerSetup:
+        if role in ctx.author.roles or guildID != ctx.guild.id:
+            SortType = ISortType.upper()
+            SortDir = ISortDir.upper()
+            if SortType == "ALPH" or SortType == "NUM":
+                if SortType == "ALPH":
+                    SortType = "item"
+                elif SortType == "NUM":
+                    SortType = "pos"
+                if SortDir == "ASC" or SortDir == "DESC":
+                    c.execute(f"UPDATE config SET sort = '{SortType} {SortDir}' WHERE guildID = {ctx.guild.id}")
+                    conn.commit()
+                    em = generateListEM(ctx.guild.id)
+                    await updateList(ctx, em, configInfo)
+                    embed=discord.Embed(title="Sorting Mode Updated", description=f"Your server list is now sorted by `{ISortType} {ISortDir}` ", color=discord.Color.green())
+                    embed.set_footer(text=footerText)
+                    await ctx.send(embed=embed)
+                else:
+                    embed=discord.Embed(title=":x: Invalid Input.", description="You can only sort; `ASC (1-9, A-Z) | DESC (9-1, Z-A)`", color=discord.Color.green())
+                    embed.set_footer(text=footerText)
+                    await ctx.send(embed=embed) 
+            else:
+                embed=discord.Embed(title=":x: Invalid Input.", description="You can only sort by; `Alph (Alphabetically) | Num (Numerically)`", color=discord.Color.green())
+                embed.set_footer(text=footerText)
+                await ctx.send(embed=embed)
+        else:
+            embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=discord.Color.green())
+            embed.set_footer(text=footerText)
+            await ctx.send(embed=embed)
+    else:
+        embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
+        embed.set_footer(text=footerText)  
+
     # <-----------------------------------------Bot login ----------------------------------->
 bot.run("Nzk4NzQ0MjYzOTU2ODg5NjAx.X_5ekA.5h94UI5FkZaouUJFtJKdmaKOYZg") 
-# latest update 2.1.5
+# latest update 2.1.6
