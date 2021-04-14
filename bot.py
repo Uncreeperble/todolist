@@ -94,6 +94,7 @@ def generateListEM(guildID):
         em.add_field(name=f"No items to be displayed.", value="`AddItem <Item>`", inline=False)
         em.set_footer(text=footerText)
     return em  
+#update
 # <------------------------------------------------------------------------->
 
 
