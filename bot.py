@@ -34,8 +34,6 @@ def checkIfSetup(guildID):
         """)
     config = c.fetchall()
     if str(config) != "[]":
-
-
         return True
     return False
     
@@ -70,9 +68,11 @@ def generateListEM(guildID):
         c.execute(f"SELECT * FROM items WHERE guildID = {guildID} ORDER BY pos ASC")
         items = c.fetchall()
         SplitList = ""
+        c.execute(f"SELECT listName from config WHERE guildID = {guildID}")
+        lname = c.fetchone()[0]
         for i in range(upto):
             SplitList = SplitList + f"\n **{items[i][2]}:** {items[i][1]}"
-        em = discord.Embed(title = f"{GNAME}'s To-Do List", description ="", color = discord.Color.green())
+        em = discord.Embed(title = f"{lname}", description ="", color = discord.Color.green())
         em.add_field(name=f"This server's list currently has {upto} item/s.", value=SplitList, inline=False)
         em.set_footer(text=footerText)
     else:
@@ -95,46 +95,46 @@ async def on_ready():
 # <--------------------------------------------------------------------------->
 
 # <--------------------------ERRORS------------------------------------->
-# @bot.event
-# async def on_command_error(ctx, error):
-    # if isinstance(error, commands.NoPrivateMessage):
-        # try:
-            # await ctx.author.send(':x: This command cannot be used in direct messages.')
-        # except discord.Forbidden:
-            # pass
-        # return
-    # elif isinstance(error, commands.CommandNotFound):
-        # return
-    # elif isinstance(error, commands.NotOwner):
-        # msg = await ctx.send(":x: Only the bot owner may run this command")
-        # await asyncio.sleep(2)
-        # await msg.delete()
-        # await ctx.message.delete()
-    # elif isinstance(error, commands.MissingRequiredArgument):
-        # embed=discord.Embed(title=":x: Missing Required Argument", description="This command required an argument to be given.", color=discord.Color.red())
-        # embed.set_footer(text=footerText)
-        # await ctx.send(embed=embed)
-    # elif isinstance(error, commands.BadArgument):
-        # embed=discord.Embed(title=":x: Bad Argument provided", description="The argument provided was not in the right form.", color=discord.Color.red())
-        # embed.set_footer(text=footerText)
-        # await ctx.send(embed=embed)
-    # elif isinstance(error, commands.MissingPermissions):
-        # embed=discord.Embed(title=":x: Missing Permissions", description="To run this command you need the `manage guild` permission.", color=discord.Color.red())
-        # embed.set_footer(text=footerText)
-        # await ctx.send(embed=embed)
-    # elif isinstance(error, commands.CommandInvokeError):
-        # embed=discord.Embed(title=":x: Command Invoke Error", description=f"{error}", color=discord.Color.red())
-        # embed.set_footer(text=footerText)
-        # await ctx.send(embed=embed)
-    # elif isinstance(error, commands.CommandOnCooldown):
-        # embed=discord.Embed(title=":x: Command Cooldown", description=f"{error}", color=discord.Color.red())
-        # embed.set_footer(text=footerText)
-        # msg = await ctx.send(embed=embed)
-        # await asyncio.sleep(2)
-        # await msg.delete() 
-        # await ctx.message.delete()
-    # else:
-        # await ctx.send(f":x: There was an error. Contact %support with the error: `{error}`")
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.NoPrivateMessage):
+        try:
+            await ctx.author.send(':x: This command cannot be used in direct messages.')
+        except discord.Forbidden:
+            pass
+        return
+    elif isinstance(error, commands.CommandNotFound):
+        return
+    elif isinstance(error, commands.NotOwner):
+        msg = await ctx.send(":x: Only the bot owner may run this command")
+        await asyncio.sleep(2)
+        await msg.delete()
+        await ctx.message.delete()
+    elif isinstance(error, commands.MissingRequiredArgument):
+        embed=discord.Embed(title=":x: Missing Required Argument", description="This command required an argument to be given.", color=discord.Color.red())
+        embed.set_footer(text=footerText)
+        await ctx.send(embed=embed)
+    elif isinstance(error, commands.BadArgument):
+        embed=discord.Embed(title=":x: Bad Argument provided", description="The argument provided was not in the right form.", color=discord.Color.red())
+        embed.set_footer(text=footerText)
+        await ctx.send(embed=embed)
+    elif isinstance(error, commands.MissingPermissions):
+        embed=discord.Embed(title=":x: Missing Permissions", description="To run this command you need the `manage guild` permission.", color=discord.Color.red())
+        embed.set_footer(text=footerText)
+        await ctx.send(embed=embed)
+    elif isinstance(error, commands.CommandInvokeError):
+        embed=discord.Embed(title=":x: Command Invoke Error", description=f"{error}", color=discord.Color.red())
+        embed.set_footer(text=footerText)
+        await ctx.send(embed=embed)
+    elif isinstance(error, commands.CommandOnCooldown):
+        embed=discord.Embed(title=":x: Command Cooldown", description=f"{error}", color=discord.Color.red())
+        embed.set_footer(text=footerText)
+        msg = await ctx.send(embed=embed)
+        await asyncio.sleep(2)
+        await msg.delete() 
+        await ctx.message.delete()
+    else:
+        await ctx.send(f":x: There was an error. Contact %support with the error: `{error}`")
 # <--------------------------------------------------------------------------->
 
 
@@ -145,7 +145,6 @@ async def on_guild_join(guild):
     await bot.change_presence(status=discord.Status.online , activity=activity)
     em = discord.Embed(title="Bot Joined Server", description=f"""Guild Name: {str(guild.name)}, Guild ID: {str(guild.id)}
 Bot Guild Count: {str(len(bot.guilds))}
-
 """, color = discord.Color.green())
     em.set_footer(text=footerText)
     channel = bot.get_channel(812605561643466762)
@@ -157,7 +156,6 @@ async def on_guild_remove(guild):
     await bot.change_presence(status=discord.Status.online , activity=activity)
     em = discord.Embed(title="Bot Left Server", description=f"""Guild Name: {str(guild.name)}, Guild ID: {str(guild.id)}
 Bot Guild Count: {str(len(bot.guilds))}
-
 """, color = discord.Color.green())
     em.set_footer(text=footerText)
     channel = bot.get_channel(812605561643466762)
@@ -249,8 +247,8 @@ async def help(ctx, page = 1):
         em.add_field(name="The default prefix for the bot is `%`", value="""
         **Config commands**
         `Prefix <prefix>` - Changes the guilds prefix `(Aliases: SetPrefix)`
-        `enableChecking` - Allows the use of the Done command `(No aliases)`
-        `setListName <New List Name>` - Changes the list name `(No aliases)`
+        `EnableChecking` - Allows the use of the Done command `(No aliases)`
+        `SetListName <New List Name>` - Changes the list name `(No aliases)`
         """, inline=True)
         em.set_footer(text="© 2021 Portal Development. All rights reserved - `%help 1` for first page")
     else:
@@ -283,10 +281,8 @@ async def about(ctx):
 @commands.cooldown(1, 3, commands.BucketType.guild)
 async def info(ctx):
     em = discord.Embed(title="To-Do List Bot", description=f"""Please visit our [site](https://todolistbot.zyrosite.com/) for more information about the bot.
-
 Stats:
 Server Count: {str(len(bot.guilds))} servers
-
 Director: Thomas Morton
 Developer: Benjamin - E (Uncreeperble#2072)
 Framework: Python""", color=discord.Color.green())
@@ -297,7 +293,6 @@ Framework: Python""", color=discord.Color.green())
 @commands.cooldown(1, 3, commands.BucketType.guild)
 async def stats(ctx):
     embed=discord.Embed(title="Bot statistics", description=f"""Guild Count: `{str(len(bot.guilds))}`
-
 Member Count: `{str(sum(g.member_count for g in bot.guilds))}`
     """, color=discord.Color.green())
     embed.set_footer(text=footerText)
@@ -408,7 +403,7 @@ async def setup(ctx):
                 
             VALUES
             (
-            {role1.id}, {role2.id}, {ctx.guild.id}, {updating_list.id}, {listChannel.id}, 'b'
+            {role1.id}, {role2.id}, {ctx.guild.id}, {updating_list.id}, {listChannel.id}, 'b', '{ctx.guild.name}s ToDo List'
             )
             """)
                 conn.commit()
@@ -734,8 +729,37 @@ async def prefix(ctx, prefix = None):
         await ctx.send(embed=embed)
         
         
+@bot.command()
+@commands.guild_only()
+@commands.cooldown(1, 5, commands.BucketType.guild)
+async def SetListName(ctx, *, newName):
+    guildID = ctx.guild.id
+    if checkIfSetup(ctx.guild.id):  
+       ServerSetup = True
+       c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
+       configInfo = list(c.fetchall()[0])
+       role = ctx.guild.get_role(int(configInfo[1]))
+       c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
+       upto = c.fetchone()[0]
 
-    
+    else:
+        ServerSetup = False
+    if ServerSetup:
+        if role in ctx.author.roles or guildID != ctx.guild.id:
+            c.execute(f"""UPDATE config SET listName = '{str(newName)}' WHERE guildID = {ctx.guild.id} """)
+            conn.commit()
+            em = generateListEM(ctx.guild.id)
+            await updateList(ctx, em, configInfo)
+            embed=discord.Embed(title="List Name Updated", description=f"Your server list name has been changed to `{newName}`", color=discord.Color.green())
+            embed.set_footer(text=footerText)
+            await ctx.send(embed=embed)
+        else:
+            embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=discord.Color.green())
+            embed.set_footer(text=footerText)
+            await ctx.send(embed=embed)
+    else:
+        embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
+        embed.set_footer(text=footerText)   
     # <-----------------------------------------Bot login ----------------------------------->
 bot.run("Nzk4NzQ0MjYzOTU2ODg5NjAx.X_5ekA.5h94UI5FkZaouUJFtJKdmaKOYZg") 
-# latest update 2.1.4
+# latest update 2.1.5
