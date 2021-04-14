@@ -11,27 +11,34 @@ conn = sqlite3.connect('bot.db')
 c = conn.cursor()
 default_prefix = 'b'
 def get_prefix(bot, message):
-    if checkTableExists(f'config{message.guild.id}'):
-        c.execute(f"SELECT prefix FROM config{message.guild.id}")
+    if checkIfSetup(message.guild.id):
+        c.execute(f"SELECT prefix FROM config WHERE guildID = {message.guild.id}")
         return c.fetchone()[0]
     else:
         return default_prefix
-bot = commands.Bot(command_prefix=get_prefix,intents=intents, case_insensitive=True)
+def my_prefix(bot, message):
+    return when_mentioned(bot, message) + [get_prefix(bot, message)]        
+bot = commands.Bot(command_prefix=my_prefix,intents=intents, case_insensitive=True)
 bot.remove_command("help")
 
 
 footerText = "© 2021 Portal Development. All rights reserved - %support"
 
 # <-------------------------- causal defs ------------------------------->
-def checkTableExists(tablename):
-    try:
-        c.execute(f"""
-            SELECT *
-            FROM {tablename}
-            """)
+
+
+def checkIfSetup(guildID):
+    c.execute(f"""
+        SELECT *
+        FROM config WHERE guildID = {guildID}
+        """)
+    config = c.fetchall()
+    if str(config) != "[]":
+
+
         return True
-    except:
-        return False
+    return False
+    
 async def updatePos(ctx):
     guildID = ctx.guild.id
     c.execute(f"SELECT COUNT(*) FROM items{guildID}")
@@ -52,7 +59,7 @@ async def updateList(ctx, em, configInfo):
     msg = await channel.fetch_message(int(configInfo[3]))
     await msg.delete()
     newMSG = await channel.send(embed=em)
-    c.execute(f"""UPDATE config{ctx.guild.id} SET updatingMSG = {int(newMSG.id)}""")
+    c.execute(f"""UPDATE config SET updatingMSG = {int(newMSG.id)} WHERE guildID = {ctx.guild.id}""")
     conn.commit()
 def generateListEM(guildID):
     c.execute(f"SELECT COUNT(*) FROM items{guildID}")
@@ -88,46 +95,46 @@ async def on_ready():
 # <--------------------------------------------------------------------------->
 
 # <--------------------------ERRORS------------------------------------->
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.NoPrivateMessage):
-        try:
-            await ctx.author.send(':x: This command cannot be used in direct messages.')
-        except discord.Forbidden:
-            pass
-        return
-    elif isinstance(error, commands.CommandNotFound):
-        return
-    elif isinstance(error, commands.NotOwner):
-        msg = await ctx.send(":x: Only the bot owner may run this command")
-        await asyncio.sleep(2)
-        await msg.delete()
-        await ctx.message.delete()
-    elif isinstance(error, commands.MissingRequiredArgument):
-        embed=discord.Embed(title=":x: Missing Required Argument", description="This command required an argument to be given.", color=discord.Color.red())
-        embed.set_footer(text=footerText)
-        await ctx.send(embed=embed)
-    elif isinstance(error, commands.BadArgument):
-        embed=discord.Embed(title=":x: Bad Argument provided", description="The argument provided was not in the right form.", color=discord.Color.red())
-        embed.set_footer(text=footerText)
-        await ctx.send(embed=embed)
-    elif isinstance(error, commands.MissingPermissions):
-        embed=discord.Embed(title=":x: Missing Permissions", description="To run this command you need the `manage guild` permission.", color=discord.Color.red())
-        embed.set_footer(text=footerText)
-        await ctx.send(embed=embed)
-    elif isinstance(error, commands.CommandInvokeError):
-        embed=discord.Embed(title=":x: Command Invoke Error", description=f"{error}", color=discord.Color.red())
-        embed.set_footer(text=footerText)
-        await ctx.send(embed=embed)
-    elif isinstance(error, commands.CommandOnCooldown):
-        embed=discord.Embed(title=":x: Command Cooldown", description=f"{error}", color=discord.Color.red())
-        embed.set_footer(text=footerText)
-        msg = await ctx.send(embed=embed)
-        await asyncio.sleep(2)
-        await msg.delete() 
-        await ctx.message.delete()
-    else:
-        await ctx.send(f":x: There was an error. Contact %support with the error: `{error}`")
+# @bot.event
+# async def on_command_error(ctx, error):
+    # if isinstance(error, commands.NoPrivateMessage):
+        # try:
+            # await ctx.author.send(':x: This command cannot be used in direct messages.')
+        # except discord.Forbidden:
+            # pass
+        # return
+    # elif isinstance(error, commands.CommandNotFound):
+        # return
+    # elif isinstance(error, commands.NotOwner):
+        # msg = await ctx.send(":x: Only the bot owner may run this command")
+        # await asyncio.sleep(2)
+        # await msg.delete()
+        # await ctx.message.delete()
+    # elif isinstance(error, commands.MissingRequiredArgument):
+        # embed=discord.Embed(title=":x: Missing Required Argument", description="This command required an argument to be given.", color=discord.Color.red())
+        # embed.set_footer(text=footerText)
+        # await ctx.send(embed=embed)
+    # elif isinstance(error, commands.BadArgument):
+        # embed=discord.Embed(title=":x: Bad Argument provided", description="The argument provided was not in the right form.", color=discord.Color.red())
+        # embed.set_footer(text=footerText)
+        # await ctx.send(embed=embed)
+    # elif isinstance(error, commands.MissingPermissions):
+        # embed=discord.Embed(title=":x: Missing Permissions", description="To run this command you need the `manage guild` permission.", color=discord.Color.red())
+        # embed.set_footer(text=footerText)
+        # await ctx.send(embed=embed)
+    # elif isinstance(error, commands.CommandInvokeError):
+        # embed=discord.Embed(title=":x: Command Invoke Error", description=f"{error}", color=discord.Color.red())
+        # embed.set_footer(text=footerText)
+        # await ctx.send(embed=embed)
+    # elif isinstance(error, commands.CommandOnCooldown):
+        # embed=discord.Embed(title=":x: Command Cooldown", description=f"{error}", color=discord.Color.red())
+        # embed.set_footer(text=footerText)
+        # msg = await ctx.send(embed=embed)
+        # await asyncio.sleep(2)
+        # await msg.delete() 
+        # await ctx.message.delete()
+    # else:
+        # await ctx.send(f":x: There was an error. Contact %support with the error: `{error}`")
 # <--------------------------------------------------------------------------->
 
 
@@ -362,7 +369,7 @@ async def setup(ctx):
         embed.set_footer(text=footerText)
         await ctx.send(embed=embed)
     else:
-        if checkTableExists(f"config{ctx.guild.id}"):  
+        if checkIfSetup(ctx.guild.id):  
             embed=discord.Embed(title="This server has already been setup yet.", description="Please run the reset command if you wish to re-run the setup.", color=discord.Color.green())
             embed.set_footer(text=footerText)
             await ctx.send(embed=embed)
@@ -395,21 +402,7 @@ async def setup(ctx):
                 
                 errors.append(f":white_check_mark: Created the <#{listChannel.id}> channel")
             except:
-                errors.append(":x: Failed to create the todo-list channel")
-            try:
-                c.execute(f"""CREATE TABLE config{ctx.guild.id}
-            (
-            ViewList int,
-            ListManagement int,
-            guildID int,
-            updatingMSG int,
-            uMSGChannel int,
-            prefix VARCHAR(3)
-            )""")
-                conn.commit()
-                errors.append(":white_check_mark: Created the guild config database")
-            except:
-                errors.append(":x: Failed to create the guild config database")    
+                errors.append(":x: Failed to create the todo-list channel") 
             try:
                 c.execute(f"""CREATE TABLE items{ctx.guild.id} (
             item VARCHAR(90),
@@ -421,7 +414,7 @@ async def setup(ctx):
             except:
                 errors.append(":x: Failed to create the guild items database")
             try:
-                c.execute(f"""INSERT INTO config{ctx.guild.id}
+                c.execute(f"""INSERT INTO config
                 
             VALUES
             (
@@ -466,9 +459,9 @@ async def reset(ctx):
             await ctx.send(embed=embed)
         else:
             errors = []
-            if checkTableExists(f"config{ctx.guild.id}"):  
+            if checkIfSetup(ctx.guild.id):  
                 ServerSetup = True
-                c.execute(f"SELECT * FROM config{ctx.guild.id}")
+                c.execute(f"SELECT * FROM config WHERE guildID = {ctx.guild.id}")
                 try:
                     configInfo = list(c.fetchone())
                 except:
@@ -499,12 +492,14 @@ async def reset(ctx):
                 except:
                     errors.append(":x: Failed to delete the List management role")
                 try:
-                    c.execute(f"DROP TABLE config{ctx.guild.id}")
+                    c.execute(f"DELETE FROM config WHERE guildID = {ctx.guild.id}")
+                    conn.commit()
                     errors.append(":white_check_mark: Guild Config database deleted")
                 except:
                     errors.append(":x: Failed to delete the guild config-info database")
                 try:
                     c.execute(f"DROP TABLE items{ctx.guild.id}")
+                    conn.commit()
                     errors.append(":white_check_mark: List Items database deleted")
                 except:
                     errors.append(":x: Failed to delete the guild list-items database")
@@ -536,10 +531,11 @@ async def viewlist(ctx, guildID=None):
             guildID = ctx.guild.id
     else:
         guildID = ctx.guild.id
-    if checkTableExists(f"config{guildID}"):  
+    if checkIfSetup(ctx.guild.id):  
         ServerSetup = True
-        c.execute(f"SELECT * FROM config{guildID}")
-        configInfo = list(c.fetchone())
+        c.execute(f"SELECT * FROM config WHERE guildID = {ctx.guild.id}")
+        configInfo = list(c.fetchall()[0])
+
         role = ctx.guild.get_role(int(configInfo[0]))
     else:
         ServerSetup = False
@@ -561,10 +557,10 @@ async def viewlist(ctx, guildID=None):
 @commands.cooldown(1, 3, commands.BucketType.guild)
 async def additem(ctx, *, defInput):
     guildID = ctx.guild.id
-    if checkTableExists(f"config{guildID}"):  
+    if checkIfSetup(ctx.guild.id):  
            ServerSetup = True
-           c.execute(f"SELECT * FROM config{guildID}")
-           configInfo = list(c.fetchone())
+           c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
+           configInfo = list(c.fetchall()[0])
            role = ctx.guild.get_role(int(configInfo[1]))
     else:
         ServerSetup = False
@@ -597,9 +593,9 @@ async def additem(ctx, *, defInput):
 @commands.cooldown(1, 3, commands.BucketType.guild)
 async def clearlist(ctx):
     guildID = ctx.guild.id
-    if checkTableExists(f"config{guildID}"):  
+    if checkIfSetup(ctx.guild.id):  
        ServerSetup = True
-       c.execute(f"SELECT * FROM config{guildID}")
+       c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
        configInfo = list(c.fetchone())
        role = ctx.guild.get_role(int(configInfo[1]))
     else:
@@ -647,10 +643,10 @@ async def clearlist(ctx):
 @commands.cooldown(1, 3, commands.BucketType.guild)
 async def deleteItem(ctx, defInput : int):
     guildID = ctx.guild.id
-    if checkTableExists(f"config{guildID}"):  
+    if checkIfSetup(ctx.guild.id):  
        ServerSetup = True
-       c.execute(f"SELECT * FROM config{guildID}")
-       configInfo = list(c.fetchone())
+       c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
+       configInfo = list(c.fetchall()[0])
        role = ctx.guild.get_role(int(configInfo[1]))
        c.execute(f"SELECT COUNT(*) FROM items{guildID}")
        upto = c.fetchone()[0]
@@ -687,10 +683,10 @@ async def deleteItem(ctx, defInput : int):
 @commands.cooldown(1, 3, commands.BucketType.guild)
 async def editItem(ctx, defInput : int, *, newItem):
     guildID = ctx.guild.id
-    if checkTableExists(f"config{guildID}"):  
+    if checkIfSetup(ctx.guild.id):  
        ServerSetup = True
-       c.execute(f"SELECT * FROM config{guildID}")
-       configInfo = list(c.fetchone())
+       c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
+       configInfo = list(c.fetchall()[0])
        role = ctx.guild.get_role(int(configInfo[1]))
        c.execute(f"SELECT COUNT(*) FROM items{guildID}")
        upto = c.fetchone()[0]
@@ -728,7 +724,7 @@ async def editItem(ctx, defInput : int, *, newItem):
 async def prefix(ctx, prefix = None):
     if prefix is not None:
         if len(prefix) <= 3:
-            c.execute(f"""UPDATE config{ctx.guild.id} SET prefix = '{str(prefix)}'""")
+            c.execute(f"""UPDATE config WHERE guildID = {ctx.guild.id} SET prefix = '{str(prefix)}'""")
             conn.commit()
             embed=discord.Embed(title="Prefix Updated", description=f"Your server prefix has been changed to `{prefix}`", color=discord.Color.green())
             embed.set_footer(text=footerText)
@@ -738,14 +734,20 @@ async def prefix(ctx, prefix = None):
             embed.set_footer(text=footerText)
             await ctx.send(embed=embed)
     else:
-        if checkTableExists(f'config{ctx.guild.id}'):
-            c.execute(f"SELECT prefix FROM config{ctx.guild.id}")
+        if checkIfSetup(ctx.guild.id):
+            c.execute(f"SELECT prefix FROM config WHERE guildID = {ctx.guild.id}")
             pf = c.fetchone()[0]
         else:
             pf = default_prefix
         embed=discord.Embed(title="Server Prefix", description=f"The server prefix is currently: `{pf}`", color=discord.Color.green())
         embed.set_footer(text=footerText)
         await ctx.send(embed=embed)
+        
+        
+@bot.command()
+async def create(ctx):
+    await ctx.send(str(checkIfSetup(ctx.guild.id)))
+    
     # <-----------------------------------------Bot login ----------------------------------->
 bot.run("Nzk4NzQ0MjYzOTU2ODg5NjAx.X_5ekA.5h94UI5FkZaouUJFtJKdmaKOYZg") 
-# latest update 2.1.2
+# latest update 2.1.3
