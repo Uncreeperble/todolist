@@ -3,56 +3,56 @@ import time
 import asyncio
 import discord
 import random
-import sqlite3
+import aiosqlite
 from discord.ext import commands
 from discord.ext.commands import *
 intents = discord.Intents.default()
-conn = sqlite3.connect('bot.db')
-c = conn.cursor()
+
+
+
 default_prefix = 'b'
-def get_prefix(bot, message):
-    if checkIfSetup(message.guild.id):
-        c.execute(f"SELECT prefix FROM config WHERE guildID = {message.guild.id}")
-        return c.fetchone()[0]
+async def get_prefix(bot, message):
+    if await checkIfSetup(message.guild.id):
+        return await bot.db.execute("SELECT prefix FROM config WHERE guildID = ?", (message.guild.id))
     else:
         return default_prefix
-def my_prefix(bot, message):
-    return when_mentioned(bot, message) + [get_prefix(bot, message)]        
-bot = commands.Bot(command_prefix=my_prefix,intents=intents, case_insensitive=True)
+async def my_prefix(bot, message):
+    return when_mentioned(bot, message) + [await get_prefix(bot, message)]        
+bot = commands.Bot(command_prefix=my_prefix,intents=intents, case_insensitive=True, activity = discord.Game(name=f"Prefix % | Working On Updates", type=1) , status = discord.Status.online)
 bot.remove_command("help")
 
 
-footerText = "© 2021 Portal Development. All rights reserved - %support"
+bot.db = bot.loop.run_until_complete(aiosqlite.connect("bot.db"))
+
+bot.footerText = "© 2021 Portal Development. All rights reserved - %support"
 
 # <-------------------------- causal defs ------------------------------->
 #no 
 
-def checkIfSetup(guildID):
-    c.execute(f"""
+async def checkIfSetup(guildID):
+    config = await bot.db.execute(f"""
         SELECT *
         FROM config WHERE guildID = {guildID}
         """)
-    config = c.fetchall()
     if str(config) != "[]":
         return True
     return False
     
 async def updatePos(ctx):
     guildID = ctx.guild.id
-    c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
-    amt = int(c.fetchone()[0])
-    c.execute(f"SELECT sort FROM config WHERE guildID = {guildID}")
-    sort = c.fetchone()[0]
+    test = await bot.db.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
+    amt = int(test[0])
+    sorti = await bot.db.execute(f"SELECT sort FROM config WHERE guildID = {guildID}")
+    sort = sorti[0]
 
     if amt != 0:
-        c.execute(f"SELECT * FROM items WHERE guildID = {guildID} ORDER BY {sort}")
-        items = c.fetchall()
-        c.execute(f"DELETE FROM items WHERE guildID = {guildID}")
+        items = await bot.db.execute(f"SELECT * FROM items WHERE guildID = {guildID} ORDER BY {sort}")
+        await bot.db.execute(f"DELETE FROM items WHERE guildID = {guildID}")
         for i in range(amt):
-            c.execute(f"""INSERT INTO items VALUES 
+            await bot.db.execute(f"""INSERT INTO items VALUES 
             ({ctx.guild.id}, "{items[i][1]}", {i+1}, 0)
         """)
-            conn.commit()
+            await bot.db.commit()
     else:
         return
 async def updateList(ctx, em, configInfo):
@@ -60,23 +60,23 @@ async def updateList(ctx, em, configInfo):
     msg = await channel.fetch_message(int(configInfo[3]))
     await msg.delete()
     newMSG = await channel.send(embed=em)
-    c.execute(f"""UPDATE config SET updatingMSG = {int(newMSG.id)} WHERE guildID = {ctx.guild.id}""")
-    conn.commit()
-def generateListEM(guildID):
-    c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
-    upto = int(c.fetchone()[0])
-    c.execute(f"SELECT sort FROM config WHERE guildID = {guildID}")
-    sort = c.fetchone()[0]
+    await bot.db.execute(f"""UPDATE config SET updatingMSG = {int(newMSG.id)} WHERE guildID = {ctx.guild.id}""")
+    await bot.db.commit()
+async def generateListEM(ctx):
+    guildID = ctx.guild.id
+    a = await bot.db.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
+    upto = int(a[0][0])
+    b = await bot.db.execute(f"SELECT sort FROM config WHERE guildID = {guildID}")
+    sort = b[0][0]
     G = bot.get_guild(int(guildID))
     GNAME = G.name
     if upto != 0:
-        c.execute(f"SELECT * FROM items WHERE guildID = {guildID} ORDER BY {sort}")
-        items = c.fetchall()
+        items = await bot.db.execute(f"SELECT * FROM items WHERE guildID = {guildID} ORDER BY {sort}")
         SplitList = ""
-        c.execute(f"SELECT listName FROM config WHERE guildID = {guildID}")
-        lname = c.fetchone()[0]
-        c.execute(f"SELECT enableChecking FROM config WHERE guildID = {guildID}")
-        checking = c.fetchone()[0]
+        c = await bot.db.execute(f"SELECT listName FROM config WHERE guildID = {guildID}")
+        lname = c[0][0]
+        d = await bot.db.execute(f"SELECT enableChecking FROM config WHERE guildID = {guildID}")
+        checking = d[0][0]
         if checking == 0:
             for i in range(upto):
                 if items[i][3] == 0:
@@ -88,13 +88,13 @@ def generateListEM(guildID):
                 SplitList = SplitList + f"\n [{items[i][2]}] {items[i][1]}"
         em = discord.Embed(title = f"{lname}", description ="", color = discord.Color.green())
         em.add_field(name=f"This server's list currently has {upto} item/s (ID | Item).", value=SplitList, inline=False)
-        em.set_footer(text=footerText)
+        em.set_footer(text=ctx.bot.footerText)
     else:
         em = discord.Embed(title = f"{GNAME}'s To-Do List", description ="", color = discord.Color.green())
         em.add_field(name=f"No items to be displayed.", value="`AddItem <Item>`", inline=False)
-        em.set_footer(text=footerText)
+        em.set_footer(text=ctx.bot.footerText)
     return em  
-#update
+
 # <------------------------------------------------------------------------->
 
 
@@ -104,8 +104,6 @@ async def on_ready():
     print("Bot running with:")
     print("Username: ", bot.user.name)
     print("User ID: ", bot.user.id)
-    activity = discord.Game(name=f"Prefix % | {str(len(bot.guilds))} guilds", type=1)
-    await bot.change_presence(status=discord.Status.online , activity=activity)
 
 # <--------------------------------------------------------------------------->
 
@@ -127,23 +125,23 @@ async def on_command_error(ctx, error):
         await ctx.message.delete()
     elif isinstance(error, commands.MissingRequiredArgument):
         embed=discord.Embed(title=":x: Missing Required Argument", description="This command required an argument to be given.", color=discord.Color.red())
-        embed.set_footer(text=footerText)
+        embed.set_footer(text=ctx.bot.footerText)
         await ctx.send(embed=embed)
     elif isinstance(error, commands.BadArgument):
         embed=discord.Embed(title=":x: Bad Argument provided", description="The argument provided was not in the right form.", color=discord.Color.red())
-        embed.set_footer(text=footerText)
+        embed.set_footer(text=ctx.bot.footerText)
         await ctx.send(embed=embed)
     elif isinstance(error, commands.MissingPermissions):
         embed=discord.Embed(title=":x: Missing Permissions", description="To run this command you need the `manage guild` permission.", color=discord.Color.red())
-        embed.set_footer(text=footerText)
+        embed.set_footer(text=ctx.bot.footerText)
         await ctx.send(embed=embed)
     elif isinstance(error, commands.CommandInvokeError):
         embed=discord.Embed(title=":x: Command Invoke Error", description=f"{error}", color=discord.Color.red())
-        embed.set_footer(text=footerText)
+        embed.set_footer(text=ctx.bot.footerText)
         await ctx.send(embed=embed)
     elif isinstance(error, commands.CommandOnCooldown):
         embed=discord.Embed(title=":x: Command Cooldown", description=f"{error}", color=discord.Color.red())
-        embed.set_footer(text=footerText)
+        embed.set_footer(text=ctx.bot.footerText)
         msg = await ctx.send(embed=embed)
         await asyncio.sleep(2)
         await msg.delete() 
@@ -161,7 +159,7 @@ async def on_guild_join(guild):
     em = discord.Embed(title="Bot Joined Server", description=f"""Guild Name: {str(guild.name)}, Guild ID: {str(guild.id)}
 Bot Guild Count: {str(len(bot.guilds))}
 """, color = discord.Color.green())
-    em.set_footer(text=footerText)
+    em.set_footer(text=ctx.bot.footerText)
     channel = bot.get_channel(812605561643466762)
     await channel.send(embed=em)
 ############################################
@@ -172,7 +170,7 @@ async def on_guild_remove(guild):
     em = discord.Embed(title="Bot Left Server", description=f"""Guild Name: {str(guild.name)}, Guild ID: {str(guild.id)}
 Bot Guild Count: {str(len(bot.guilds))}
 """, color = discord.Color.green())
-    em.set_footer(text=footerText)
+    em.set_footer(text=ctx.bot.footerText)
     channel = bot.get_channel(812605561643466762)
     await channel.send(embed=em)   
 # <--------------------------------------------------------------------------->
@@ -222,7 +220,7 @@ async def eval_fn(ctx, *, cmd):
 async def BetaProgram(ctx):
     embed=discord.Embed(title="Beta Testers Program", description="""*Interested in becoming a beta tester?*
     --> To become a beta tester, [join the support server](https://discord.gg/pB77UUUxq3) and contact support.""", color=discord.Color.green())
-    embed.set_footer(text=footerText)
+    embed.set_footer(text=ctx.bot.footerText)
     await ctx.send(embed=embed)    
 @bot.command()
 @commands.cooldown(1, 3, commands.BucketType.guild)
@@ -280,7 +278,7 @@ async def ping(ctx):
 @commands.cooldown(1, 3, commands.BucketType.guild)
 async def invite(ctx):
     embed=discord.Embed(title="Click me to invite the Bot", url="https://top.gg/bot/782105629572464652/invite/", description="The link provided gives the bot Administrator permissions.", color=discord.Color.green())
-    embed.set_footer(text=footerText)
+    embed.set_footer(text=ctx.bot.footerText)
     await ctx.send(embed=embed)
 ##########################################
 @bot.command()
@@ -290,7 +288,7 @@ async def about(ctx):
     
     You can invite the bot by clicking [here](https://discord.com/oauth2/authorize?client_id=782105629572464652&scope=bot&permissions=8)
 """, color = discord.Color.green())
-    em.set_footer(text=footerText)
+    em.set_footer(text=ctx.bot.footerText)
     await ctx.send(embed=em)
 #################################################
 @bot.command(aliases=['credits', 'author'])
@@ -302,7 +300,7 @@ Server Count: {str(len(bot.guilds))} servers
 Director: Thomas Morton
 Developer: Benjamin - E (Uncreeperble#2072)
 Framework: Python""", color=discord.Color.green())
-    em.set_footer(text=footerText)
+    em.set_footer(text=ctx.bot.footerText)
     await ctx.send(embed=em)
 ##################################################
 @bot.command(aliases=['statistics','guildcount'])
@@ -311,7 +309,7 @@ async def stats(ctx):
     embed=discord.Embed(title="Bot statistics", description=f"""Guild Count: `{str(len(bot.guilds))}`
 Member Count: `{str(sum(g.member_count for g in bot.guilds))}`
     """, color=discord.Color.green())
-    embed.set_footer(text=footerText)
+    embed.set_footer(text=ctx.bot.footerText)
     await ctx.send(embed=embed)
 ###################################################
 @bot.command()
@@ -331,7 +329,7 @@ async def Suggestion(ctx, *, Suggestion):
         User ID: `{ctx.author.id}`
         Username: `{ctx.author.name}{ctx.author.discriminator}`
         """, color=discord.Color.green())
-    em.set_footer(text=footerText)
+    em.set_footer(text=ctx.bot.footerText)
     await channel.send(embed=em)  
     em = discord.Embed(title=f"Suggestion Sent To Developers", description=f"""Developer Recieved:
     
@@ -341,7 +339,7 @@ async def Suggestion(ctx, *, Suggestion):
         User ID: `{ctx.author.id}`
         Username: `{ctx.author.name}#{ctx.author.discriminator}`
         """, color=discord.Color.green())
-    em.set_footer(text=footerText)
+    em.set_footer(text=ctx.bot.footerText)
     await ctx.send(embed=em)    
 ################################################################################
 @bot.command(aliases=['Report_Bug', 'BugReport'])
@@ -354,7 +352,7 @@ async def ReportBug(ctx, *, Bug):
         User ID: `{ctx.author.id}`
         Username: `{ctx.author.name}#{ctx.author.discriminator}`
         """, color=discord.Color.green())
-    em.set_footer(text=footerText)
+    em.set_footer(text=ctx.bot.footerText)
     await channel.send(embed=em)  
     em = discord.Embed(title=f"Bug Report Sent To Developers", description=f"""Developer Recieved:
     
@@ -364,7 +362,7 @@ async def ReportBug(ctx, *, Bug):
         User ID: `{ctx.author.id}`
         Username: `{ctx.author.name}#{ctx.author.discriminator}`
         """, color=discord.Color.green())
-    em.set_footer(text=footerText)
+    em.set_footer(text=ctx.bot.footerText)
     await ctx.send(embed=em)  
 # <----------------------------------------------------------------------->
 
@@ -377,12 +375,12 @@ async def ReportBug(ctx, *, Bug):
 async def setup(ctx):
     if ctx.guild.me.guild_permissions.manage_roles == False or ctx.guild.me.guild_permissions.manage_channels == False:
         embed = discord.Embed(title="Bot missing Permissions", description="To Run this command the bot needs the `Manage Roles` and `Manage Channels` permissions.", color=discord.Color.green())
-        embed.set_footer(text=footerText)
+        embed.set_footer(text=ctx.bot.footerText)
         await ctx.send(embed=embed)
     else:
-        if checkIfSetup(ctx.guild.id):  
+        if await checkIfSetup(ctx.guild.id):  
             embed=discord.Embed(title="This server has already been setup yet.", description="Please run the reset command if you wish to re-run the setup.", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
         else:   
             errors = []
@@ -415,21 +413,21 @@ async def setup(ctx):
             except:
                 errors.append(":x: Failed to create the todo-list channel") 
             try:
-                c.execute(f"""INSERT INTO config
+                await bot.db.execute(f"""INSERT INTO config
                 
             VALUES
             (
             {role1.id}, {role2.id}, {ctx.guild.id}, {updating_list.id}, {listChannel.id}, 'b', '{ctx.guild.name}s ToDo List', 1, 'pos ASC'
             )
             """)
-                conn.commit()
+                await bot.db.commit()
                 errors.append(":white_check_mark: Updated the guild config database")
             except:
                 errors.append(":x: Failed to update the guild config database")
             test = '\n'.join(errors)
             em = discord.Embed(title="Setup Complete", description=f"The Setup was completed in {round(time.time() - startTime, 4)} seconds.", color=discord.Color.green())
             em.add_field(name="The following has been changed:", value=test)
-            em.set_footer(text=footerText)
+            em.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=em)    
 
 #########################################################
@@ -439,7 +437,7 @@ async def setup(ctx):
 @commands.cooldown(1, 10, commands.BucketType.guild)
 async def reset(ctx):
     embed = discord.Embed(title=f"Please Confirm", description="Please react with :white_check_mark: to perform a full reset.", color=discord.Color.green())
-    embed.set_footer(text=footerText)
+    embed.set_footer(text=ctx.bot.footerText)
     message =  await ctx.send(embed=embed)
     await message.add_reaction("\U00002705")
     await message.add_reaction("\U0000274e")
@@ -450,21 +448,21 @@ async def reset(ctx):
         reaction, user = await bot.wait_for('reaction_add', timeout=10.0, check=check)
     except:
         embed = discord.Embed(title="TimeOut Error", description="You did not react in time, reset cancelled.", color=discord.Color.green())
-        embed.set_footer(text=footerText)
+        embed.set_footer(text=ctx.bot.footerText)
         NotTimeout = False
         await ctx.send(embed=embed)
     if NotTimeout:
         if str(reaction.emoji) == "\U0000274e":
             embed = discord.Embed(title="Reset Cancelled", description="The reset was cancelled, no changes were made.", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
         else:
             errors = []
-            if checkIfSetup(ctx.guild.id):  
-                ServerSetup = True
-                c.execute(f"SELECT * FROM config WHERE guildID = {ctx.guild.id}")
+            if await checkIfSetup(ctx.guild.id):  
                 try:
-                    configInfo = list(c.fetchone())
+                    ServerSetup = True
+                    e = await bot.db.execute(f"SELECT * FROM config WHERE guildID = {ctx.guild.id}")
+                    configInfo = list(e[0][0])
                 except:
                     errors.append(":x: Could not fetch config info")
                     configInfo = [1,2,3,4,5]
@@ -493,26 +491,26 @@ async def reset(ctx):
                 except:
                     errors.append(":x: Failed to delete the List management role")
                 try:
-                    c.execute(f"DELETE FROM config WHERE guildID = {ctx.guild.id}")
-                    conn.commit()
+                    await bot.db.execute(f"DELETE FROM config WHERE guildID = {ctx.guild.id}")
+                    await bot.db.commit()
                     errors.append(":white_check_mark: Guild Config database deleted")
                 except:
                     errors.append(":x: Failed to delete the guild config-info database")
                 try:
-                    c.execute(f"DELETE FROM items WHERE guildID = {ctx.guild.id}")
-                    conn.commit()
+                    await bot.db.execute(f"DELETE FROM items WHERE guildID = {ctx.guild.id}")
+                    await bot.db.commit()
                     errors.append(":white_check_mark: List Items database deleted")
                 except:
                     errors.append(":x: Failed to delete the guild list-items database")
                 test = '\n'.join(errors)
                 em = discord.Embed(title="Reset Complete", description=f"The Reset was completed in {round(time.time() - startTime, 4)} seconds.", color=discord.Color.green())
                 em.add_field(name="The following has been changed:", value=test)
-                em.set_footer(text=footerText)
+                em.set_footer(text=ctx.bot.footerText)
                 await ctx.send(embed=em)                    
                 
             else:
                 embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
-                embed.set_footer(text=footerText)
+                embed.set_footer(text=ctx.bot.footerText)
                 await ctx.send(embed=embed)
     else:
         return
@@ -532,25 +530,25 @@ async def viewlist(ctx, guildID=None):
             guildID = ctx.guild.id
     else:
         guildID = ctx.guild.id
-    if checkIfSetup(ctx.guild.id):  
+    if await checkIfSetup(ctx.guild.id):  
         ServerSetup = True
-        c.execute(f"SELECT * FROM config WHERE guildID = {ctx.guild.id}")
-        configInfo = list(c.fetchall()[0])
+        f = await bot.db.execute(f"SELECT * FROM config WHERE guildID = {ctx.guild.id}")
+        configInfo = list(f[0])
 
         role = ctx.guild.get_role(int(configInfo[0]))
     else:
         ServerSetup = False
     if ServerSetup:
         if role in ctx.author.roles or guildID != ctx.guild.id:
-            em = generateListEM(guildID)
+            em = generateListEM(ctx,guildID)
             await ctx.send(embed=em)
         else:
             embed=discord.Embed(title=":x: No Permission.", description="You require the `View List` role to run this command!", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
     else:
         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
-        embed.set_footer(text=footerText)
+        embed.set_footer(text=ctx.bot.footerText)
         await ctx.send(embed=embed)
 #############################################################################
 @bot.command(aliases=['add','add_item'])
@@ -558,35 +556,35 @@ async def viewlist(ctx, guildID=None):
 @commands.cooldown(1, 3, commands.BucketType.guild)
 async def additem(ctx, *, defInput):
     guildID = ctx.guild.id
-    if checkIfSetup(ctx.guild.id):  
+    if await checkIfSetup(ctx.guild.id):  
            ServerSetup = True
-           c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
-           configInfo = list(c.fetchall()[0])
+           g = await bot.db.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
+           configInfo = list(g[0])
            role = ctx.guild.get_role(int(configInfo[1]))
     else:
         ServerSetup = False
     if ServerSetup:
         if role in ctx.author.roles or guildID != ctx.guild.id:
 
-            c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {ctx.guild.id}")
-            upto = int(c.fetchone()[0]) + 1
-            c.execute(f"""INSERT INTO items VALUES (
+            h = await bot.db.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {ctx.guild.id}")
+            upto = int(await bot.db.h[0][0]) + 1
+            await bot.db.execute(f"""INSERT INTO items VALUES (
             {ctx.guild.id}, '{defInput}', {upto}, 0
             )""")
-            conn.commit()
-            em = generateListEM(ctx.guild.id)
+            await bot.db.commit()
+            em = generateListEM(ctx)
             await updateList(ctx, em, configInfo)
             em = discord.Embed(title = f":white_check_mark: Item added", description =f"`{defInput}` was added to the todo list in position {upto}", color = discord.Color.green())
-            em.set_footer(text=footerText)
+            em.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=em)
 
         else:
             embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
     else:
         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
-        embed.set_footer(text=footerText)
+        embed.set_footer(text=ctx.bot.footerText)
         await ctx.send(embed=embed)
 #####################################################################################
 @bot.command(aliases=['clear_list', 'clear'])
@@ -594,10 +592,10 @@ async def additem(ctx, *, defInput):
 @commands.cooldown(1, 3, commands.BucketType.guild)
 async def clearlist(ctx):
     guildID = ctx.guild.id
-    if checkIfSetup(ctx.guild.id):  
+    if await checkIfSetup(ctx.guild.id):  
        ServerSetup = True
-       c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
-       configInfo = list(c.fetchone())
+       i = await bot.db.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
+       configInfo = list(await i[0])
        role = ctx.guild.get_role(int(configInfo[1]))
     else:
         ServerSetup = False
@@ -614,29 +612,29 @@ async def clearlist(ctx):
                 reaction, user = await bot.wait_for('reaction_add', timeout=10.0, check=check)
             except:
                 embed=discord.Embed(title="TimeOut Error", description="You did not react in time, action cancelled.", color=discord.Color.green())
-                embed.set_footer(text=footerText)
+                embed.set_footer(text=ctx.bot.footerText)
                 await ctx.send(embed=embed)
                 Nottimeout = False
             if Nottimeout:
                 if str(reaction.emoji) == "\U0000274e":
                     embed=discord.Embed(title="Action Cancelled", description="The list has not been cleared due to cancellation.", color=discord.Color.green())
-                    embed.set_footer(text=footerText)
+                    embed.set_footer(text=ctx.bot.footerText)
                     await ctx.send(embed=embed)
                 elif str(reaction.emoji) == "\U00002705":
-                    c.execute(f"DELETE FROM items WHERE guildID = {guildID}")
-                    conn.commit()
-                    em = generateListEM(guildID)
+                    await bot.db.execute(f"DELETE FROM items WHERE guildID = {guildID}")
+                    await bot.db.commit()
+                    em = generateListEM(ctx)
                     await updateList(ctx, em, configInfo)
                     embed=discord.Embed(title="List Cleared", description="The list has been cleared.", color=discord.Color.green())
-                    embed.set_footer(text=footerText)
+                    embed.set_footer(text=ctx.bot.footerText)
                     await ctx.send(embed=embed)
         else:
             embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
     else:
         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
-        embed.set_footer(text=footerText)
+        embed.set_footer(text=ctx.bot.footerText)
         await ctx.send(embed=embed)
 ########################################################################################################
 @bot.command(aliases=['delitem', 'del', 'delete_item'])
@@ -644,38 +642,38 @@ async def clearlist(ctx):
 @commands.cooldown(1, 3, commands.BucketType.guild)
 async def deleteItem(ctx, defInput : int):
     guildID = ctx.guild.id
-    if checkIfSetup(ctx.guild.id):  
+    if await checkIfSetup(ctx.guild.id):  
        ServerSetup = True
-       c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
-       configInfo = list(c.fetchall()[0])
+       k = await bot.db.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
+       configInfo = list(await bot.db.k[0])
        role = ctx.guild.get_role(int(configInfo[1]))
-       c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
-       upto = c.fetchone()[0]
+       a = await bot.db.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
+       upto = await bot.db.a[0][0]
 
     else:
         ServerSetup = False
     if ServerSetup:
         if role in ctx.author.roles or guildID != ctx.guild.id:
             if int(defInput) <= int(upto) and int(defInput) > 0:
-                c.execute(f"DELETE FROM items WHERE pos = {defInput} AND guildID = {ctx.guild.id}")
-                conn.commit()
+                await bot.db.execute(f"DELETE FROM items WHERE pos = {defInput} AND guildID = {ctx.guild.id}")
+                await bot.db.commit()
                 await updatePos(ctx)
-                em = generateListEM(ctx.guild.id)
+                em = generateListEM(ctx)
                 await updateList(ctx, em, configInfo)
                 embed=discord.Embed(title="Item Deleted", description=f"The item in position `{defInput}` was deleted.", color=discord.Color.green())
-                embed.set_footer(text=footerText)
+                embed.set_footer(text=ctx.bot.footerText)
                 await ctx.send(embed=embed)
             else:
                 embed=discord.Embed(title="Invalid ID.", description="The id provided was not valid.", color=discord.Color.green())
-                embed.set_footer(text=footerText)
+                embed.set_footer(text=ctx.bot.footerText)
                 await ctx.send(embed=embed)
         else:
             embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
     else:
         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
-        embed.set_footer(text=footerText)
+        embed.set_footer(text=ctx.bot.footerText)
         await ctx.send(embed=embed)    
 # <----------------------------------------------------------------------------------------------->  
 
@@ -684,37 +682,37 @@ async def deleteItem(ctx, defInput : int):
 @commands.cooldown(1, 3, commands.BucketType.guild)
 async def editItem(ctx, defInput : int, *, newItem):
     guildID = ctx.guild.id
-    if checkIfSetup(ctx.guild.id):  
+    if await checkIfSetup(ctx.guild.id):  
        ServerSetup = True
-       c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
-       configInfo = list(c.fetchall()[0])
+       b = await bot.db.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
+       configInfo = list(await b[0])
        role = ctx.guild.get_role(int(configInfo[1]))
-       c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
-       upto = c.fetchone()[0]
+       c = await bot.db.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
+       upto = await bot.db.c[0][0]
 
     else:
         ServerSetup = False
     if ServerSetup:
         if role in ctx.author.roles or guildID != ctx.guild.id:
             if int(defInput) <= int(upto) and int(defInput) > 0:
-                c.execute(f"""UPDATE items SET item = '{str(newItem)}' WHERE pos = {int(defInput)} AND guildID = {ctx.guild.id}""")
-                conn.commit()
-                em = generateListEM(ctx.guild.id)
+                await bot.db.execute(f"""UPDATE items SET item = '{str(newItem)}' WHERE pos = {int(defInput)} AND guildID = {ctx.guild.id}""")
+                await bot.db.commit()
+                em = generateListEM(ctx)
                 await updateList(ctx, em, configInfo)
                 embed=discord.Embed(title="Item Edited", description=f"The item in position `{defInput}` was edited to `{newItem}`.", color=discord.Color.green())
-                embed.set_footer(text=footerText)
+                embed.set_footer(text=ctx.bot.footerText)
                 await ctx.send(embed=embed)
             else:
                 embed=discord.Embed(title="Invalid ID.", description="The id provided was not valid.", color=discord.Color.green())
-                embed.set_footer(text=footerText)
+                embed.set_footer(text=ctx.bot.footerText)
                 await ctx.send(embed=embed)
         else:
             embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
     else:
         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
-        embed.set_footer(text=footerText)
+        embed.set_footer(text=ctx.bot.footerText)
         await ctx.send(embed=embed)
         
 
@@ -725,23 +723,23 @@ async def editItem(ctx, defInput : int, *, newItem):
 async def prefix(ctx, prefix = None):
     if prefix is not None:
         if len(prefix) <= 3:
-            c.execute(f"""UPDATE config WHERE guildID = {ctx.guild.id} SET prefix = '{str(prefix)}'""")
-            conn.commit()
+            await bot.db.execute(f"""UPDATE config WHERE guildID = {ctx.guild.id} SET prefix = '{str(prefix)}'""")
+            await bot.db.commit()
             embed=discord.Embed(title="Prefix Updated", description=f"Your server prefix has been changed to `{prefix}`", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
         else:
             embed=discord.Embed(title=":x: Too Long", description="The server prefix can only be up to 3 characters long!", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
     else:
-        if checkIfSetup(ctx.guild.id):
-            c.execute(f"SELECT prefix FROM config WHERE guildID = {ctx.guild.id}")
-            pf = c.fetchone()[0]
+        if await checkIfSetup(ctx.guild.id):
+            d = await bot.db.execute(f"SELECT prefix FROM config WHERE guildID = {ctx.guild.id}")
+            pf = await bot.db.d[0][0]
         else:
             pf = default_prefix
         embed=discord.Embed(title="Server Prefix", description=f"The server prefix is currently: `{pf}`", color=discord.Color.green())
-        embed.set_footer(text=footerText)
+        embed.set_footer(text=ctx.bot.footerText)
         await ctx.send(embed=embed)
         
         
@@ -750,45 +748,45 @@ async def prefix(ctx, prefix = None):
 @commands.cooldown(1, 5, commands.BucketType.guild)
 async def SetListName(ctx, *, newName):
     guildID = ctx.guild.id
-    if checkIfSetup(ctx.guild.id):  
+    if await checkIfSetup(ctx.guild.id):  
        ServerSetup = True
-       c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
-       configInfo = list(c.fetchall()[0])
+       e = await bot.db.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
+       configInfo = list(await bot.db.e[0])
        role = ctx.guild.get_role(int(configInfo[1]))
-       c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
-       upto = c.fetchone()[0]
+       f = await bot.db.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
+       upto = await bot.db.f[0][0]
 
     else:
         ServerSetup = False
     if ServerSetup:
         if role in ctx.author.roles or guildID != ctx.guild.id:
-            c.execute(f"""UPDATE config SET listName = '{str(newName)}' WHERE guildID = {ctx.guild.id} """)
-            conn.commit()
-            em = generateListEM(ctx.guild.id)
+            await bot.db.execute(f"""UPDATE config SET listName = '{str(newName)}' WHERE guildID = {ctx.guild.id} """)
+            await bot.db.commit()
+            em = generateListEM(ctx)
             await updateList(ctx, em, configInfo)
             embed=discord.Embed(title="List Name Updated", description=f"Your server list name has been changed to `{newName}`", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
         else:
             embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
     else:
         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
-        embed.set_footer(text=footerText)  
+        embed.set_footer(text=ctx.bot.footerText)  
 
 @bot.command()
 @commands.guild_only()
 @commands.cooldown(1, 5, commands.BucketType.guild)
 async def Sort(ctx, ISortType, ISortDir):
     guildID = ctx.guild.id
-    if checkIfSetup(ctx.guild.id):  
+    if await checkIfSetup(ctx.guild.id):  
        ServerSetup = True
-       c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
-       configInfo = list(c.fetchall()[0])
+       g = await bot.db.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
+       configInfo = list(await bot.db.g[0])
        role = ctx.guild.get_role(int(configInfo[1]))
-       c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
-       upto = c.fetchone()[0]
+       h = await bot.db.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
+       upto = await h[0][0]
 
     else:
         ServerSetup = False
@@ -802,28 +800,28 @@ async def Sort(ctx, ISortType, ISortDir):
                 elif SortType == "NUM":
                     SortType = "pos"
                 if SortDir == "ASC" or SortDir == "DESC":
-                    c.execute(f"UPDATE config SET sort = '{SortType} {SortDir}' WHERE guildID = {ctx.guild.id}")
-                    conn.commit()
-                    em = generateListEM(ctx.guild.id)
+                    await bot.db.execute(f"UPDATE config SET sort = '{SortType} {SortDir}' WHERE guildID = {ctx.guild.id}")
+                    await bot.db.commit()
+                    em = generateListEM(ctx)
                     await updateList(ctx, em, configInfo)
                     embed=discord.Embed(title="Sorting Mode Updated", description=f"Your server list is now sorted by `{ISortType} {ISortDir}` ", color=discord.Color.green())
-                    embed.set_footer(text=footerText)
+                    embed.set_footer(text=ctx.bot.footerText)
                     await ctx.send(embed=embed)
                 else:
                     embed=discord.Embed(title=":x: Invalid Input.", description="You can only sort; `ASC (1-9, A-Z) | DESC (9-1, Z-A)`", color=discord.Color.green())
-                    embed.set_footer(text=footerText)
+                    embed.set_footer(text=ctx.bot.footerText)
                     await ctx.send(embed=embed) 
             else:
                 embed=discord.Embed(title=":x: Invalid Input.", description="You can only sort by; `Alph (Alphabetically) | Num (Numerically)`", color=discord.Color.green())
-                embed.set_footer(text=footerText)
+                embed.set_footer(text=ctx.bot.footerText)
                 await ctx.send(embed=embed)
         else:
             embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
     else:
         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
-        embed.set_footer(text=footerText)  
+        embed.set_footer(text=ctx.bot.footerText)  
 
 @bot.command()
 @commands.guild_only()
@@ -831,35 +829,35 @@ async def Sort(ctx, ISortType, ISortDir):
 async def Checking(ctx, state):
     guildID = ctx.guild.id
     state = state.upper()
-    if checkIfSetup(ctx.guild.id):  
+    if await checkIfSetup(ctx.guild.id):  
        ServerSetup = True
-       c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
-       configInfo = list(c.fetchall()[0])
+       a = await bot.db.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
+       configInfo = list(await a[0])
        role = ctx.guild.get_role(int(configInfo[1]))
-       c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
-       upto = c.fetchone()[0]
+       b = await bot.db.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
+       upto = await bot.db.b[0][0]
 
     else:
         ServerSetup = False
     if ServerSetup:
         if role in ctx.author.roles or guildID != ctx.guild.id:
             if state == "ON":
-                c.execute(f"UPDATE config SET enableChecking = 1 WHERE guildID = {ctx.guild.id}")
-                conn.commit()
+                await bot.db.execute(f"UPDATE config SET enableChecking = 1 WHERE guildID = {ctx.guild.id}")
+                await bot.db.commit()
             elif state == "OFF":
-                c.execute(f"UPDATE config SET enableChecking = 0 WHERE guildID = {ctx.guild.id}")
-                conn.commit()
+                await bot.db.execute(f"UPDATE config SET enableChecking = 0 WHERE guildID = {ctx.guild.id}")
+                await bot.db.commit()
             else:
                 embed=discord.Embed(title=":x: Incorrect Input.", description="Possible inputs are: `ON | OFF`", color=discord.Color.green())
-                embed.set_footer(text=footerText)
+                embed.set_footer(text=ctx.bot.footerText)
                 await ctx.send(embed=embed)                
         else:
             embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
     else:
         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
-        embed.set_footer(text=footerText)  
+        embed.set_footer(text=ctx.bot.footerText)  
 
 @bot.command()
 @commands.guild_only()
@@ -867,40 +865,41 @@ async def Checking(ctx, state):
 async def done(ctx, defInput : int):
     guildID = ctx.guild.id
     state = state.upper()
-    if checkIfSetup(ctx.guild.id):  
+    if await checkIfSetup(ctx.guild.id):  
        ServerSetup = True
-       c.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
-       configInfo = list(c.fetchall()[0])
+       c = await bot.db.execute(f"SELECT * FROM config WHERE guildID = {guildID}")
+       configInfo = list(await bot.db.c[0])
        role = ctx.guild.get_role(int(configInfo[1]))
-       c.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
-       upto = c.fetchone()[0]
+       g = await bot.db.execute(f"SELECT COUNT(*) FROM items WHERE guildID = {guildID}")
+       upto = await g[0][0]
 
     else:
         ServerSetup = False
     if ServerSetup:
         if role in ctx.author.roles or guildID != ctx.guild.id:
             if int(defInput) <= int(upto) and int(defInput) > 0:
-                c.execute(f"DELETE FROM items WHERE pos = {defInput} AND guildID = {ctx.guild.id}")
-                conn.commit()
+                await bot.db.execute(f"DELETE FROM items WHERE pos = {defInput} AND guildID = {ctx.guild.id}")
+                await bot.db.commit()
                 await updatePos(ctx)
-                em = generateListEM(ctx.guild.id)
+                em = generateListEM(ctx)
                 await updateList(ctx, em, configInfo)
                 embed=discord.Embed(title="Item Deleted", description=f"The item in position `{defInput}` was deleted.", color=discord.Color.green())
-                embed.set_footer(text=footerText)
+                embed.set_footer(text=ctx.bot.footerText)
                 await ctx.send(embed=embed)
             else:
                 embed=discord.Embed(title="Invalid ID.", description="The id provided was not valid.", color=discord.Color.green())
-                embed.set_footer(text=footerText)
+                embed.set_footer(text=ctx.bot.footerText)
                 await ctx.send(embed=embed)
             
         else:
             embed=discord.Embed(title=":x: No Permission.", description="You require the `List Management` role to run this command!", color=discord.Color.green())
-            embed.set_footer(text=footerText)
+            embed.set_footer(text=ctx.bot.footerText)
             await ctx.send(embed=embed)
     else:
         embed=discord.Embed(title="This server has not been setup yet.", description="Please run the setup command before running this command.", color=discord.Color.green())
-        embed.set_footer(text=footerText)  
+        embed.set_footer(text=ctx.bot.footerText)  
 
     # <-----------------------------------------Bot login ----------------------------------->
 bot.run("Nzk4NzQ0MjYzOTU2ODg5NjAx.X_5ekA.5h94UI5FkZaouUJFtJKdmaKOYZg") 
-# latest update 2.1.6
+# latest update 2.1.7
+# %%
