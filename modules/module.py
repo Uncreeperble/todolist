@@ -2,13 +2,14 @@ import discord
 import aiosqlite
 
 
-async def getconfiginfo(ctx, bot):
-    e = await bot.db.execute(f"SELECT * FROM config WHERE guildID = {ctx.guild.id}")
-    return list(e[0][0])
+async def getconfiginfo(id, bot):
+    print(5)
+    e = await bot.db.execute(f"SELECT * FROM config WHERE guildID = {id}")
+    configInfo = list(e[0][0])
+    return configInfo
 
 
 async def checkIfSetup(guildID, bot):
-    print('checking if setup')
     cursor = await bot.db.execute(f"""
         SELECT count(*)
         FROM config WHERE guildID = {guildID}
@@ -16,7 +17,6 @@ async def checkIfSetup(guildID, bot):
     config = await cursor.fetchone()
     if str(config) != "(0,)":
         return True
-    print('no')
     return False
     
 async def updatePos(ctx, bot):
@@ -38,8 +38,7 @@ async def updatePos(ctx, bot):
         return
 
 async def updateList(ctx, em, bot):
-    e = await bot.db.execute(f"SELECT * FROM config WHERE guildID = {ctx.guild.id}")
-    configInfo = list(e[0][0])
+    configInfo = getconfiginfo(ctx.guild.id, bot)
     channel = bot.get_channel(int(configInfo[4]))
     msg = await channel.fetch_message(int(configInfo[3]))
     await msg.delete()

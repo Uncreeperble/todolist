@@ -65,5 +65,15 @@ class Other(commands.Cog):
         --> To become a beta tester, [join the support server](https://discord.gg/pB77UUUxq3) and contact support.""", color=discord.Color.green())
         embed.set_footer(text=self.bot.footerText)
         await ctx.send(embed=embed)   
+
+
+    @commands.command()
+    @commands.cooldown(1, 3, commands.BucketType.guild)
+    async def Support(self, ctx):
+        embed=discord.Embed(title="ToDo List Bot", description="""Please visit our [site](https://todolistbot.zyrosite.com/) for more information
+        
+        Please [join the support server](https://discord.gg/pB77UUUxq3) if you need further support.""", color=discord.Color.green())
+        embed.set_footer(text=self.bot.footerText)
+        await ctx.send(embed=embed)   
 def setup(bot):
     bot.add_cog(Other(bot))

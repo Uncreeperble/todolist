@@ -22,7 +22,7 @@ bot.footerText = "© 2021 Portal Development. All rights reserved - %support"
 @bot.command()
 @commands.cooldown(1, 3, commands.BucketType.guild)
 async def help(ctx, page = 1):
-    if page == 1:
+    if page == 1 or page != 2 or page != 3:
         em = discord.Embed(title="ToDo-List Bot Help Menu (Pg. 1/3)", description="", color=discord.Color.green())
         em.add_field(name="The default prefix for the bot is `%`", value="""
         **Main Commands**
@@ -62,11 +62,11 @@ async def help(ctx, page = 1):
         `Sort <alph|num> <ASC|DESC>` - Sorts list [alphabet/numer]ically ASC or DESC `(No aliases)`
         """, inline=True)
         em.set_footer(text="© 2021 Portal Development. All rights reserved -  `help <1 | 2 | 3>` for help")
-    else:
-        await ctx.send("Incorrect page number.")
     await ctx.send(embed=em)
 for filename in os.listdir('./cogs'):
     if filename.endswith('py'):
         bot.load_extension(f'cogs.{filename[:-3]}') 
 
+
+# Latest update 2.1.8
 bot.run("Nzk4NzQ0MjYzOTU2ODg5NjAx.X_5ekA.5h94UI5FkZaouUJFtJKdmaKOYZg") 

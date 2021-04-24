@@ -48,7 +48,7 @@ class ErrorHandling(commands.Cog):
             await msg.delete() 
             await ctx.message.delete()
         else:
-            await ctx.send(f":x: There was an error. Contact %support with the error: `{error}`")
+            await ctx.send(f":x: There was an error. Contact Support with the error: `{error}`, link to support server: https://discord.gg/h5GKHEMaKd")
 
 
 def setup(bot):

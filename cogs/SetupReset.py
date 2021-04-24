@@ -17,15 +17,14 @@ class SetupReset(commands.Cog):
     @commands.has_guild_permissions(manage_guild=True)
     @commands.cooldown(1, 10, commands.BucketType.guild)
     async def setup(self, ctx):
-
         if ctx.guild.me.guild_permissions.manage_roles == False or ctx.guild.me.guild_permissions.manage_channels == False:
             embed = discord.Embed(title="Bot missing Permissions", description="To Run this command the bot needs the `Manage Roles` and `Manage Channels` permissions.", color=discord.Color.green())
             embed.set_footer(text=self.bot.footerText)
             await ctx.send(embed=embed)
         else:
             if await module.checkIfSetup(ctx.guild.id, self.bot):  
-
                 embed=discord.Embed(title="This server has already been setup yet.", description="Please run the reset command if you wish to re-run the setup.", color=discord.Color.green())
+                await ctx.send(embed=embed)
             else:   
 
                 errors = []
@@ -109,9 +108,8 @@ class SetupReset(commands.Cog):
                 if await module.checkIfSetup(ctx.guild.id, self.bot):  
                     try:
                         ServerSetup = True
-                        cursor = await self.bot.db.execute(f"SELECT * FROM config WHERE guildID = {ctx.guild.id}")
-                        e = await cursor.fetchall()
-                        configInfo = list(e[0])
+                        configInfo = await module.getconfiginfo(ctx.guild.id, self.bot)
+                        print(configInfo)
                     except:
                         errors.append(":x: Could not fetch config info")
                         configInfo = [1,2,3,4,5]
